@@ -1,91 +1,83 @@
 #!/usr/bin/env node
+'use strict';
 /**
- * DroperAgent v1.0.0 - MCP Server with Autonomous Worker
+ * DroperAgent local supervisor API.
+ * This is NOT an MCP protocol server or a WooCommerce integration yet.
  */
-
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
+const crypto = require('node:crypto');
+const { TaskEngine } = require('./task-engine');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+app.disable('x-powered-by');
+app.use(express.json({ limit: '32kb' }));
+const host = process.env.HOST || '127.0.0.1';
+const port = Number(process.env.PORT || 3000);
+const apiToken = process.env.DROPERAGENT_API_TOKEN || '';
 
-app.use(cors());
-app.use(express.json());
+if (!apiToken && host !== '127.0.0.1' && host !== '::1') {
+  throw new Error('DROPERAGENT_API_TOKEN required when binding beyond loopback');
+}
+function authorize(req, res, next) {
+  if (!apiToken) {
+    if (req.method === 'GET') return next();
+    return res.status(503).json({ error: 'not_configured', detail: 'Set DROPERAGENT_API_TOKEN to enable writes' });
+  }
+  const actual = req.get('authorization') || '';
+  const expected = 'Bearer ' + apiToken;
+  const a = Buffer.from(actual);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  next();
+}
 
-// Simple in-memory store
-const store = {
-    products: [{ id: 1, name: 'Demo Product', price: 89.90, stock: 100, status: 'published' }],
-    orders: [],
-    tasks: []
+const handlers = {
+  ping: async () => ({ pong: true, time: new Date().toISOString() }),
+  'health-check': async () => {
+    const url = 'http://' + (host === '::1' ? '[::1]' : host) + ':' + port + '/health';
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw new Error('Health HTTP ' + response.status);
+    const body = await response.json();
+    if (body.status !== 'healthy') throw new Error('Health returned unhealthy status');
+    return { status: body.status, checkedAt: new Date().toISOString() };
+  }
 };
+const engine = new TaskEngine({ handlers });
 
-// Heartbeat tracking
-let heartbeat = Date.now();
-
-// Health check
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'healthy',
-        version: '1.0.0',
-        uptime: process.uptime(),
-        timestamp: new Date().toISOString(),
-        heartbeat: heartbeat
-    });
+app.get('/health', (_req, res) => res.json({
+  status: 'healthy', service: 'droperagent-api', uptime: process.uptime(),
+  note: 'API health does not verify WordPress, WooCommerce, DSers or MCP'
+}));
+app.get('/tasks', authorize, (_req, res) => res.json({ queue: engine.stats(), tasks: engine.list() }));
+app.post('/task', authorize, (req, res) => {
+  try {
+    const { type, data, priority } = req.body || {};
+    const task = engine.create(type, data || {}, priority === undefined ? 1 : priority);
+    res.status(202).json({ success: true, task });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
 });
+app.get('/control', authorize, (_req, res) => res.json({
+  supervisor: engine.stats(),
+  integrations: { wordpress: 'NOT_VERIFIED', woocommerce: 'NOT_CONFIGURED', dsers: 'NOT_CONFIGURED', mcp: 'NOT_IMPLEMENTED' },
+  note: 'No fabricated products, sales, agent activity or metrics'
+}));
+app.get('/', (_req, res) => res.json({
+  name: 'DroperAgent Local Supervisor', endpoints: ['/health', '/tasks', '/task', '/control'],
+  integrations: 'Not yet connected to WordPress/WooCommerce/DSers'
+}));
 
-// Task endpoints
-app.post('/task', (req, res) => {
-    const { type, data, priority } = req.body;
-    const task = {
-        id: Date.now(),
-        type,
-        data,
-        priority: priority || 1,
-        status: 'pending',
-        createdAt: new Date().toISOString()
-    };
-    store.tasks.push(task);
-    res.json({ success: true, task });
-});
-
-app.get('/tasks', (req, res) => {
-    res.json({
-        queue: {
-            pending: store.tasks.filter(t => t.status === 'pending').length,
-            completed: store.tasks.filter(t => t.status === 'completed').length
-        },
-        tasks: store.tasks
-    });
-});
-
-// Dashboard
-app.get('/control', (req, res) => {
-    res.json({
-        store: { products: store.products.length, orders: store.orders.length },
-        agents: { count: 9, active: 9 },
-        tasks: store.tasks.length
-    });
-});
-
-// Welcome
-app.get('/', (req, res) => {
-    res.json({
-        name: 'DroperAgent',
-        version: '1.0.0',
-        endpoints: ['/health', '/control', '/tasks', '/task']
-    });
-});
-
-// Start server
-const server = app.listen(PORT, () => {
-    heartbeat = Date.now();
-    console.log(`DroperAgent MCP Server running on port ${PORT}`);
-});
-
-// Update heartbeat
-setInterval(() => heartbeat = Date.now(), 10000);
-
-module.exports = { app, server };
+let server;
+function start() {
+  server = app.listen(port, host, () => {
+    console.log('DroperAgent supervisor listening at http://' + host + ':' + port);
+    engine.start();
+  });
+  return server;
+}
+if (require.main === module) start();
+module.exports = { app, engine, start, authorize };
