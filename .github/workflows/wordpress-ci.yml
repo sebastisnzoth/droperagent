@@ -66,6 +66,23 @@ jobs:
           }
           echo "Persisted product id: " . $id . "\n";
           ' --allow-root
+      - name: Verify real WooCommerce REST controller
+        run: |
+          docker compose run --rm --user 0 --entrypoint wp wpcli eval '
+          $user = get_user_by("login", "ci_admin");
+          if (!$user) { throw new Exception("CI admin missing"); }
+          wp_set_current_user($user->ID);
+          $id = (int) get_option("droperagent_ci_product_id");
+          $response = rest_do_request(new WP_REST_Request("GET", "/wc/v3/products/" . $id));
+          if ($response->get_status() !== 200) {
+            throw new Exception("WooCommerce REST status " . $response->get_status());
+          }
+          $product = $response->get_data();
+          if ((int)$product["id"] !== $id || $product["name"] !== "CI Draft Product") {
+            throw new Exception("WooCommerce REST data mismatch");
+          }
+          echo "WooCommerce REST controller PASS for product " . $id . "\n";
+          ' --allow-root
       - name: Collect diagnostics on failure
         if: failure()
         run: docker compose logs --tail=100 --no-color
