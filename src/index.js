@@ -1,46 +1,51 @@
+#!/usr/bin/env node
+/**
+ * DroperAgent v1.0.0
+ * Agente de automatización para Dropshipping WooCommerce
+ */
+
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
+app.use(cors());
 app.use(express.json());
 
-// Rotas básicas
-app.get('/', (req, res) => {
-  res.json({ 
-    status: 'DroperAgent ativo',
-    version: '0.1.0',
-    timestamp: new Date().toISOString()
-  });
-});
-
+// Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', uptime: process.uptime() });
+    res.json({
+        status: 'healthy',
+        version: '1.0.0',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+    });
 });
 
-// API de processamento
-app.post('/api/process', (req, res) => {
-  const { item, options } = req.body;
-  
-  if (!item) {
-    return res.status(400).json({ error: 'Item é obrigatório' });
-  }
-  
-  // Simulação de processamento
-  res.json({
-    id: Date.now(),
-    status: 'processed',
-    input: item,
-    options,
-    processedAt: new Date().toISOString()
-  });
+// Welcome endpoint
+app.get('/', (req, res) => {
+    res.json({
+        name: 'DroperAgent',
+        description: 'Agente de automatización para Dropshipping WooCommerce',
+        version: '1.0.0',
+        endpoints: [
+            '/health',
+            '/control',
+            '/api/woo/products',
+            '/api/woo/orders',
+            '/api/dsers/sync',
+            '/api/dsers/providers',
+            '/api/task'
+        ]
+    });
 });
 
-// Iniciar servidor
+// Start server
 app.listen(PORT, () => {
-  console.log(`DroperAgent rodando na porta ${PORT}`);
+    console.log(`DroperAgent rodando na porta ${PORT}`);
 });
 
-module.exports = app;
+module.exports = { app };
