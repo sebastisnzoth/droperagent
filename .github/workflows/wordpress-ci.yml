@@ -32,7 +32,7 @@ jobs:
         run: |
           installed=0
           for i in $(seq 1 25); do
-            if docker compose run --rm --entrypoint wp wpcli core install --url=http://127.0.0.1:8080 --title='DroperAgent CI Sandbox' --admin_user=ci_admin --admin_password="$WP_ADMIN_PASSWORD" --admin_email=ci@example.invalid --skip-email; then
+            if docker compose run --rm --user 0 --entrypoint wp wpcli core install --url=http://127.0.0.1:8080 --title='DroperAgent CI Sandbox' --admin_user=ci_admin --admin_password="$WP_ADMIN_PASSWORD" --admin_email=ci@example.invalid --skip-email --allow-root; then
               installed=1
               break
             fi
@@ -43,11 +43,12 @@ jobs:
         run: docker compose exec -T -u root wordpress chown -R www-data:www-data /var/www/html/wp-content
       - name: Install and activate WooCommerce
         run: |
-          docker compose run --rm --entrypoint wp wpcli plugin install woocommerce --activate
-          docker compose run --rm --entrypoint wp wpcli plugin is-active woocommerce
+          docker compose run --rm --user 0 --entrypoint wp wpcli plugin install woocommerce --activate --allow-root
+          docker compose run --rm --user 0 --entrypoint wp wpcli plugin is-active woocommerce --allow-root
+          docker compose exec -T -u root wordpress chown -R www-data:www-data /var/www/html/wp-content
       - name: Create and reread a real WooCommerce product via database
         run: |
-          docker compose run --rm --entrypoint wp wpcli eval '
+          docker compose run --rm --user 0 --entrypoint wp wpcli eval '
           $p = new WC_Product_Simple();
           $p->set_name("CI Draft Product");
           $p->set_status("draft");
@@ -56,15 +57,15 @@ jobs:
           if (!$id) { throw new Exception("Product creation failed"); }
           update_option("droperagent_ci_product_id", $id);
           echo "Created product id: " . $id . "\n";
-          '
-          docker compose run --rm --entrypoint wp wpcli eval '
+          ' --allow-root
+          docker compose run --rm --user 0 --entrypoint wp wpcli eval '
           $id = (int) get_option("droperagent_ci_product_id");
           $p = wc_get_product($id);
           if (!$p || $p->get_name() !== "CI Draft Product" || $p->get_status() !== "draft") {
             throw new Exception("Product did not persist");
           }
           echo "Persisted product id: " . $id . "\n";
-          '
+          ' --allow-root
       - name: Collect diagnostics on failure
         if: failure()
         run: docker compose logs --tail=100 --no-color
