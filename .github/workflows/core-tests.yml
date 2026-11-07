@@ -19,6 +19,11 @@ jobs:
           node --check src/task-engine.js
           node --check src/index.js
           node --check src/woocommerce-client.js
+          node --check src/mcp-server.mjs
           node --check worker.js
       - name: Core and WooCommerce adapter unit tests (no external dependencies)
         run: node --test tests/*.test.js
+      - name: Install MCP SDK dependencies
+        run: npm install --no-audit --no-fund
+      - name: Real MCP client-server protocol test
+        run: node --test tests/mcp.test.mjs
