@@ -8,6 +8,7 @@ require('dotenv').config();
 const express = require('express');
 const crypto = require('node:crypto');
 const { TaskEngine } = require('./task-engine');
+const { WooCommerceClient } = require('./woocommerce-client');
 
 const app = express();
 app.disable('x-powered-by');
@@ -45,7 +46,26 @@ const handlers = {
     return { status: body.status, checkedAt: new Date().toISOString() };
   }
 };
+const wcConfigured = Boolean(process.env.WOOCOMMERCE_URL && process.env.WC_CONSUMER_KEY && process.env.WC_CONSUMER_SECRET);
+const wc = wcConfigured ? new WooCommerceClient({
+  baseUrl: process.env.WOOCOMMERCE_URL,
+  consumerKey: process.env.WC_CONSUMER_KEY,
+  consumerSecret: process.env.WC_CONSUMER_SECRET
+}) : null;
+if (wc) {
+  handlers['woo-create-draft'] = data => wc.createDraft(data);
+}
 const engine = new TaskEngine({ handlers });
+
+function requireWoo(req, res, next) {
+  if (!apiToken) return res.status(503).json({ error: 'not_configured', detail: 'API token required for WooCommerce endpoints' });
+  if (!wc) return res.status(503).json({ error: 'not_configured', detail: 'WooCommerce credentials not configured' });
+  next();
+}
+function handleWooError(error, res) {
+  const status = Number.isInteger(error.status) && error.status >= 400 && error.status < 500 ? error.status : 502;
+  res.status(status).json({ error: 'woocommerce_error', detail: error.message });
+}
 
 app.get('/health', (_req, res) => res.json({
   status: 'healthy', service: 'droperagent-api', uptime: process.uptime(),
@@ -61,13 +81,37 @@ app.post('/task', authorize, (req, res) => {
     res.status(400).json({ success: false, error: error.message });
   }
 });
+app.get('/api/woo/products', authorize, requireWoo, async (req, res) => {
+  try {
+    const products = await wc.listProducts({
+      page: Number(req.query.page || 1), perPage: Number(req.query.per_page || 10), status: req.query.status
+    });
+    res.json({ products, source: 'woocommerce' });
+  } catch (error) { handleWooError(error, res); }
+});
+app.get('/api/woo/products/:id', authorize, requireWoo, async (req, res) => {
+  try { res.json(await wc.getProduct(Number(req.params.id))); }
+  catch (error) { handleWooError(error, res); }
+});
+app.post('/api/woo/products/drafts', authorize, requireWoo, async (req, res) => {
+  try {
+    const product = await wc.createDraft(req.body || {});
+    res.status(201).json({ product, source: 'woocommerce' });
+  } catch (error) { handleWooError(error, res); }
+});
+app.get('/api/woo/orders', authorize, requireWoo, async (req, res) => {
+  try {
+    const orders = await wc.listOrders({ page: Number(req.query.page || 1), perPage: Number(req.query.per_page || 10) });
+    res.json({ orders, source: 'woocommerce' });
+  } catch (error) { handleWooError(error, res); }
+});
 app.get('/control', authorize, (_req, res) => res.json({
   supervisor: engine.stats(),
-  integrations: { wordpress: 'NOT_VERIFIED', woocommerce: 'NOT_CONFIGURED', dsers: 'NOT_CONFIGURED', mcp: 'NOT_IMPLEMENTED' },
+  integrations: { wordpress: 'NOT_VERIFIED', woocommerce: wcConfigured ? 'CONFIGURED_NOT_VERIFIED' : 'NOT_CONFIGURED', dsers: 'NOT_CONFIGURED', mcp: 'NOT_IMPLEMENTED' },
   note: 'No fabricated products, sales, agent activity or metrics'
 }));
 app.get('/', (_req, res) => res.json({
-  name: 'DroperAgent Local Supervisor', endpoints: ['/health', '/tasks', '/task', '/control'],
+  name: 'DroperAgent Local Supervisor', endpoints: ['/health', '/tasks', '/task', '/control', '/api/woo/products', '/api/woo/orders'],
   integrations: 'Not yet connected to WordPress/WooCommerce/DSers'
 }));
 
