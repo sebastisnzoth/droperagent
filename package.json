@@ -1,0 +1,30 @@
+{
+  "name": "droperagent",
+  "version": "0.1.0",
+  "description": "Agente automatizado para processamento e distribuição de tarefas",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest",
+    "build": "tsc"
+  },
+  "keywords": [
+    "agent",
+    "automation",
+    "droper",
+    "task"
+  ],
+  "author": "sebastisnzoth",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "dotenv": "^16.0.3",
+    "typeorm": "^0.3.17",
+    "sqlite3": "^5.1.6"
+  },
+  "devDependencies": {
+    "jest": "^29.6.1",
+    "nodemon": "^3.0.1"
+  }
+}
