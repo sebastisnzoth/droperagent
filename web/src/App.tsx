@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, Bell, Box, Check, ChevronDown, CircleHelp, Clock3, Cloud, Code2, Command, Database, ExternalLink, Filter, GitBranch, Globe2, LayoutDashboard, LockKeyhole, Menu, Moon, Package, PanelLeftClose, Play, Plus, RefreshCw, Search, Settings2, ShieldCheck, ShoppingBag, Sun, Terminal, Truck, Users, Workflow, X, Zap } from 'lucide-react';
+import { Activity, ArrowRight, ArrowUpRight, Bell, Box, Check, ChevronDown, CircleHelp, Clock3, Cloud, Code2, Database, ExternalLink, Filter, Globe2, LayoutDashboard, LockKeyhole, Menu, Moon, Package, RefreshCw, Search, Settings2, ShieldCheck, ShoppingBag, Sun, Terminal, Users, Workflow, X, Zap } from 'lucide-react';
 
 type Page = 'inicio' | 'overview' | 'products' | 'orders' | 'agents' | 'tasks' | 'integrations' | 'settings' | 'diagnostics';
 type Mode = 'DEMO' | 'LIVE';
