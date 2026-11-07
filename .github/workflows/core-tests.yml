@@ -24,6 +24,6 @@ jobs:
       - name: Core and WooCommerce adapter unit tests (no external dependencies)
         run: node --test tests/*.test.js
       - name: Install MCP SDK dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --ignore-scripts --no-audit --no-fund
       - name: Real MCP client-server protocol test
         run: node --test tests/mcp.test.mjs
