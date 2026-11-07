@@ -5,14 +5,16 @@ Updated: 2026-11-07. Branch: `fix/unified-autonomous-engine`.
 ## Implemented in this branch (awaiting GitHub Actions verification)
 - `src/task-engine.js`: one on-disk JSON task queue, atomic replacement, retry/backoff, restart recovery for RUNNING tasks, single-process execution guard.
 - `src/index.js`: one worker and API share the queue. Background polling begins with the HTTP server. POST /task requires a configured bearer token. Server binds loopback by default.
+- `src/woocommerce-client.js`: real WooCommerce REST adapter with safe draft-only writes, credential and HTTPS checks, and unit tests.
+- `src/mcp-server.mjs`: genuine official MCP v2 stdio server exposing store status, products, orders and opt-in draft creation. Handshake/tools/list tested with a real SDK client; not yet connected to a live store.
 - `worker.js`: compatibility entrypoint; no independent task store and no shell command execution.
 - `start-worker.sh`: foreground combined service restart loop. It needs a separate operating-system service manager for login/reboot startup.
 - `tests/task-engine.test.js`: core regression tests. See CI logs for actual PASS/FAIL.
 
 ## Not yet verified or implemented
-- WordPress running over HTTP with a database.
-- WooCommerce activated, API keys and real product/order operations.
-- A real Model Context Protocol server and MCP client integration.
+- WordPress installed and WooCommerce products persisted successfully in an ephemeral GitHub Actions MariaDB/WordPress sandbox (PR #3). WordPress on the user's Mac or production hosting is still unverified.
+- WooCommerce authentication credentials, real external HTTP API operations and product/order operations on a persistent deployment are not yet connected.
+- A working MCP protocol server has now been implemented as `src/mcp-server.mjs`. The official SDK client/server stdio handshake, tools/list and safe disconnected tool calls passed CI. Live WooCommerce-authenticated MCP calls remain unverified.
 - DSers and AliExpress account authorizations and order synchronization.
 - Automated software-development tasks through OpenClaw/Harness.
 - Production deployment, security hardening, and end-to-end commerce checkout.
@@ -31,4 +33,4 @@ From the cloned repository, using Node.js 22:
 The local on-disk queue is single-process only and is not a distributed or SQLite transactional queue. Do not run two API/worker instances against the same store.
 
 ## Next P0
-Install and verify WordPress and WooCommerce on a supported database; implement an actual MCP SDK bridge and real WooCommerce adapter; implement a supported OpenClaw task executor with explicit permissions. None of those should be marked PASS based only on this API's health result.
+Verify the additional WooCommerce REST controller integration check in PR #3. Configure a genuine persistent WordPress test store, create limited-permission WooCommerce test API credentials, and test the adapter/MCP against it. Then connect the trusted local OpenClaw host using its supported MCP configuration. No external supplier payments or production use.
