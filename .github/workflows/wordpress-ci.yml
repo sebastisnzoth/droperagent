@@ -1,0 +1,71 @@
+name: WordPress + WooCommerce Integration (Sandbox)
+on:
+  push:
+    branches: ["feat/wordpress-woocommerce-ci-sandbox"]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  wordpress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DB_PASSWORD: ci_only_droperagent_password
+      DB_ROOT_PASSWORD: ci_only_root_password
+      WP_ADMIN_PASSWORD: ci_only_admin_password
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check compose syntax
+        run: docker compose config --quiet
+      - name: Start real WordPress and MariaDB
+        run: docker compose up -d db wordpress
+      - name: Wait for WordPress HTTP
+        run: |
+          ready=0
+          for i in $(seq 1 40); do
+            if curl --silent --output /dev/null --max-time 4 http://127.0.0.1:8080/; then ready=1; break; fi
+            sleep 3
+          done
+          test "$ready" -eq 1
+      - name: Install WordPress with WP-CLI
+        run: |
+          installed=0
+          for i in $(seq 1 25); do
+            if docker compose run --rm --entrypoint wp wpcli core install --url=http://127.0.0.1:8080 --title='DroperAgent CI Sandbox' --admin_user=ci_admin --admin_password="$WP_ADMIN_PASSWORD" --admin_email=ci@example.invalid --skip-email; then
+              installed=1
+              break
+            fi
+            sleep 4
+          done
+          test "$installed" -eq 1
+      - name: Install and activate WooCommerce
+        run: |
+          docker compose run --rm --entrypoint wp wpcli plugin install woocommerce --activate
+          docker compose run --rm --entrypoint wp wpcli plugin is-active woocommerce
+      - name: Create and reread a real WooCommerce product via database
+        run: |
+          docker compose run --rm --entrypoint wp wpcli eval '
+          $p = new WC_Product_Simple();
+          $p->set_name("CI Draft Product");
+          $p->set_status("draft");
+          $p->set_regular_price("19.90");
+          $id = $p->save();
+          if (!$id) { throw new Exception("Product creation failed"); }
+          update_option("droperagent_ci_product_id", $id);
+          echo "Created product id: " . $id . "\n";
+          '
+          docker compose run --rm --entrypoint wp wpcli eval '
+          $id = (int) get_option("droperagent_ci_product_id");
+          $p = wc_get_product($id);
+          if (!$p || $p->get_name() !== "CI Draft Product" || $p->get_status() !== "draft") {
+            throw new Exception("Product did not persist");
+          }
+          echo "Persisted product id: " . $id . "\n";
+          '
+      - name: Collect diagnostics on failure
+        if: failure()
+        run: docker compose logs --tail=100 --no-color
+      - name: Tear down isolated sandbox
+        if: always()
+        run: docker compose down -v
