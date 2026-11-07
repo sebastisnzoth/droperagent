@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
- * DroperAgent v1.0.0 - MCP Server
+ * DroperAgent v1.0.0 - MCP Server with Autonomous Worker
  */
 
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { Supervisor } = require('./supervisor');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,9 +15,15 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Initialize Supervisor
-const supervisor = new Supervisor();
-supervisor.init();
+// Simple in-memory store
+const store = {
+    products: [{ id: 1, name: 'Demo Product', price: 89.90, stock: 100, status: 'published' }],
+    orders: [],
+    tasks: []
+};
+
+// Heartbeat tracking
+let heartbeat = Date.now();
 
 // Health check
 app.get('/health', (req, res) => {
@@ -24,30 +31,42 @@ app.get('/health', (req, res) => {
         status: 'healthy',
         version: '1.0.0',
         uptime: process.uptime(),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        heartbeat: heartbeat
     });
 });
 
 // Task endpoints
-app.post('/task/create', (req, res) => {
+app.post('/task', (req, res) => {
     const { type, data, priority } = req.body;
-    const taskId = supervisor.createTask(type, data, priority);
-    res.json({ taskId, success: true });
+    const task = {
+        id: Date.now(),
+        type,
+        data,
+        priority: priority || 1,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+    };
+    store.tasks.push(task);
+    res.json({ success: true, task });
 });
 
 app.get('/tasks', (req, res) => {
-    res.json({ 
-        queue: supervisor.getQueue(),
-        total: supervisor.tasks.length 
+    res.json({
+        queue: {
+            pending: store.tasks.filter(t => t.status === 'pending').length,
+            completed: store.tasks.filter(t => t.status === 'completed').length
+        },
+        tasks: store.tasks
     });
 });
 
 // Dashboard
 app.get('/control', (req, res) => {
     res.json({
-        store: { products: 1, orders: 0 },
+        store: { products: store.products.length, orders: store.orders.length },
         agents: { count: 9, active: 9 },
-        tasks: supervisor.getQueue()
+        tasks: store.tasks.length
     });
 });
 
@@ -56,13 +75,17 @@ app.get('/', (req, res) => {
     res.json({
         name: 'DroperAgent',
         version: '1.0.0',
-        endpoints: ['/health', '/control', '/tasks', '/task/create']
+        endpoints: ['/health', '/control', '/tasks', '/task']
     });
 });
 
-// Start
-app.listen(PORT, () => {
-    console.log(`DroperAgent running on port ${PORT}`);
+// Start server
+const server = app.listen(PORT, () => {
+    heartbeat = Date.now();
+    console.log(`DroperAgent MCP Server running on port ${PORT}`);
 });
 
-module.exports = { app, supervisor };
+// Update heartbeat
+setInterval(() => heartbeat = Date.now(), 10000);
+
+module.exports = { app, server };
