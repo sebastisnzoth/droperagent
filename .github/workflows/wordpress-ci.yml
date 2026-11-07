@@ -39,7 +39,9 @@ jobs:
             sleep 4
           done
           test "$installed" -eq 1
-      - name: Fix shared volume ownership for WordPress PHP and WP-CLI\n        run: docker compose exec -T -u root wordpress chown -R www-data:www-data /var/www/html/wp-content\n      - name: Install and activate WooCommerce
+      - name: Fix shared volume ownership for WordPress PHP and WP-CLI
+        run: docker compose exec -T -u root wordpress chown -R www-data:www-data /var/www/html/wp-content
+      - name: Install and activate WooCommerce
         run: |
           docker compose run --rm --entrypoint wp wpcli plugin install woocommerce --activate
           docker compose run --rm --entrypoint wp wpcli plugin is-active woocommerce
