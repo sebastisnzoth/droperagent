@@ -1,0 +1,38 @@
+-- Base de datos SQLite para DroperAgent demo
+-- WordPress + WooCommerce emulado
+
+CREATE TABLE IF NOT EXISTS products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    price REAL,
+    stock INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'draft',
+    categories TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_name TEXT,
+    total REAL,
+    status TEXT DEFAULT 'pending',
+    tracking TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent TEXT,
+    action TEXT,
+    data TEXT,
+    status TEXT DEFAULT 'pending',
+    result TEXT,
+    error TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME
+);
+
+-- Datos de prueba
+INSERT INTO products (name, price, stock, status, categories) VALUES 
+('Produto Demo 1', 89.90, 100, 'published', 'Electronics'),
+('Produto Demo 2', 149.90, 50, 'published', 'Home');
