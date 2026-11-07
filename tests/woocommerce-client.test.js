@@ -42,7 +42,7 @@ test('creates draft only and never publishes directly', async () => {
   });
   const result = await client.createDraft({ name: 'Test product', regularPrice: '19.90' });
   assert.equal(result[0].name, 'CI draft');
-  await assert.rejects(() => client.createDraft({ name: '', regularPrice: '19.90' }), /Invalid product name/);
+  assert.throws(() => client.createDraft({ name: '', regularPrice: '19.90' }), /Invalid product name/);
 });
 
 test('propagates WooCommerce errors without declaring success', async () => {
