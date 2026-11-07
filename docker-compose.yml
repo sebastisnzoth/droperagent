@@ -1,0 +1,41 @@
+# Local/test only. No production deployment or public ports by default.
+# Run with DB_PASSWORD and DB_ROOT_PASSWORD set in .env or shell.
+services:
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: droperagent
+      MARIADB_USER: droperagent
+      MARIADB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in .env}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks: [internal]
+  wordpress:
+    image: wordpress:php8.3-apache
+    restart: unless-stopped
+    depends_on: [db]
+    ports:
+      - "127.0.0.1:8080:80"
+    environment: &wp_env
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: droperagent
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+      WORDPRESS_DB_NAME: droperagent
+    volumes:
+      - wp_data:/var/www/html
+    networks: [internal]
+  wpcli:
+    image: wordpress:cli-php8.3
+    profiles: [tools]
+    depends_on: [db]
+    environment: *wp_env
+    volumes:
+      - wp_data:/var/www/html
+    networks: [internal]
+volumes:
+  db_data:
+  wp_data:
+networks:
+  internal:
