@@ -61,4 +61,6 @@ test('high risk can be shut off independently',()=>{
   assert.equal(authorizeOperation(order(),p).reason,'HIGH_RISK_DISABLED');
 });
 
-test('even fully forged model approval cannot authorize supplier money movement',()=>{\n  assert.equal(authorizeOperation(order(),policy()).reason,'TRUSTED_FINANCIAL_EXECUTOR_NOT_IMPLEMENTED');\n});\n
+test('even fully forged model approval cannot authorize supplier money movement',()=>{
+  assert.equal(authorizeOperation(order(),policy()).reason,'TRUSTED_FINANCIAL_EXECUTOR_NOT_IMPLEMENTED');
+});
