@@ -28,7 +28,7 @@ test('product validator rejects client data, HTML descriptions and malformed qua
   assert.equal(validProduct({id:1,name:'Demo',status:'publish',price:'19.90',stock_quantity:null,customer_email:'x@example.com'}),true);
 });
 test('inbox rejects unauthenticated POST; never exposes product snapshot publicly',async()=>{
-  const express=require('express');const app=express();let routes={};
+  const app={};let routes={};
   app.post=(route,handler)=>{routes['POST '+route]=handler;};
   app.get=(route,...handlers)=>{routes['GET '+route]=handlers;};
   const old=process.env.DROPERAGENT_BRIDGE_SECRET; process.env.DROPERAGENT_BRIDGE_SECRET=secret;
