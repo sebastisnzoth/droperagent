@@ -35,8 +35,8 @@ jobs:
         run: npm test
       - name: Typecheck and build
         env:
-          VITE_DROPERAGENT_API_URL: ${{ vars.DROPERAGENT_API_URL }}
-          VITE_ENABLE_LIVE_READONLY: ${{ vars.DROPERAGENT_LIVE_READONLY }}
+          VITE_DROPERAGENT_API_URL: ${{ vars.DROPERAGENT_API_URL || 'https://droperagent-api.onrender.com' }}
+          VITE_ENABLE_LIVE_READONLY: ${{ vars.DROPERAGENT_LIVE_READONLY || 'true' }}
         run: npm run build
       - name: Install Chromium browser
         run: npx playwright install --with-deps chromium
