@@ -1,6 +1,15 @@
 # DSers MCP + Automated Mapping — integración DROPERAGENT
 
-Estado: diseño integrado a la documentación; **NO conectado, NO órdenes realizadas, NO proveedor contactado**.
+Estado: diseño + auditor offline de variantes en rama de integración; **NO conectado, NO órdenes realizadas, NO proveedor contactado**.
+
+## Compatibilidad que no se debe asumir
+
+La página oficial de DSers MCP actualmente declara como requisito de conexión al menos una tienda **Shopify o Wix**. DSers cuenta también con integraciones tradicionales para WooCommerce, pero eso **no demuestra que DSers MCP pueda gestionar esta tienda WooCommerce**. Antes de desarrollar sincronización DSers MCP-WooCommerce, consultar soporte y verificar `list_stores` con la tienda real. Mientras tanto, mantener WooCommerce REST API y DSers como adaptadores separados. Referencia: https://www.dsers.com/mcp-server
+
+## Primera implementación real: auditor de mapeo
+
+`src/dsers-mapping-audit.js` es un validador local sin llamadas de red, pagos ni credenciales. `auditMapping({storeVariants,supplierVariants,mappings})` exige SKU únicos, mapeo para cada variante, SKU proveedor existente, stock comprobado y coincidencia de opciones o equivalencia marcada verificada. Devuelve `BLOCKED` o `READY_FOR_MANUAL_REVIEW`, y **siempre** `canPlaceSupplierOrder:false`. La bandera `equivalenceVerified` significa verificación humana/documental externa; no demuestra equivalencia por sí misma. Ejecutar `node --test tests/dsers-mapping-audit.test.js` o suite `npm test` antes de merge. Este código **NO** activa Automated Mapping dentro de DSers, ni da acceso al proveedor; solo impide aprobar automáticamente mapeos incompletos.
+
 
 ## Hallazgo principal (8 nov 2026)
 
@@ -26,7 +35,7 @@ No implementar endpoints privados, scraping del dashboard, ni inventar token/API
 
 ## Flujo objetivo
 
-1. Conectar cuenta DSers, WooCommerce y AliExpress/Alibaba/1688/Agent mediante canales oficiales; comprobar `list_stores` y plataformas autorizadas.
+1. Conectar la tienda WooCommerce por REST oficial y la cuenta DSers por sus canales soportados; comprobar `list_stores` y verificar explícitamente compatibilidad MCP de la tienda antes de cualquier operación cruzada.
 2. Encontrar candidatos con `list_supplier_search_filters` -> `search_supplier_products` -> `get_supplier_product` -> `list_supplier_product_shipping_methods_and_cost` al país de destino.
 3. Calcular costo total en moneda consistente: precio proveedor + flete + impuestos estimados + comisiones + reservas de devolución; exigir margen mínimo y evidencia de disponibilidad y plazo.
 4. Preparar borradores con `create_pre_publish_products`, `get_pre_publish_product`; validar atributos y precios; confirmar publicación vía `get_push_shipping_recommendation` -> `publish_products_to_stores` y `get_job_status`.
