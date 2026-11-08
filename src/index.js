@@ -1,91 +1,148 @@
 #!/usr/bin/env node
+'use strict';
 /**
- * DroperAgent v1.0.0 - MCP Server with Autonomous Worker
+ * DroperAgent local supervisor API.
+ * This is NOT an MCP protocol server or a WooCommerce integration yet.
  */
-
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
+const crypto = require('node:crypto');
+const { TaskEngine } = require('./task-engine');
+const { WooCommerceClient } = require('./woocommerce-client');
+const { createAdminAuth } = require('./live-auth');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
+app.disable('x-powered-by');
+app.use(express.json({ limit: '32kb' }));
+const host = process.env.HOST || '127.0.0.1';
+const port = Number(process.env.PORT || 3000);
+const apiToken = process.env.DROPERAGENT_API_TOKEN || '';
+const admin = createAdminAuth({ apiToken });
+const allowedOrigin = process.env.DROPERAGENT_WEB_ORIGIN || 'https://sebastisnzoth.github.io';
 
-app.use(cors());
-app.use(express.json());
+if (!apiToken && !admin.enabled && host !== '127.0.0.1' && host !== '::1') {
+  throw new Error('Admin authentication required for public API');
+}
+if (process.env.NODE_ENV === 'production' && host !== '127.0.0.1' && host !== '::1' && !admin.enabled) {
+  throw new Error('DROPERAGENT_ADMIN_PASSWORD must be set for public deployment');
+}
+app.disable('etag');
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Content-Type-Options', 'nosniff');
+  const origin = req.get('origin');
+  if (origin && origin !== allowedOrigin) return res.status(403).json({ error: 'origin_not_allowed' });
+  if (origin === allowedOrigin) {
+    res.set('Access-Control-Allow-Origin', allowedOrigin);
+    res.set('Vary', 'Origin');
+    res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+function authorize(req, res, next) {
+  if (!admin.verify(req.get('authorization') || '')) return res.status(401).json({ error: 'unauthorized' });
+  next();
+}
+app.post('/auth/login', (req, res) => {
+  if (process.env.NODE_ENV === 'production' && !req.secure) {
+    return res.status(403).json({ error: 'https_required' });
+  }
+  const outcome = admin.login(req.body?.password, req.ip);
+  res.status(outcome.status).json(outcome.status === 200 ? { token: outcome.token, expiresIn: outcome.expiresIn } : { error: outcome.error });
+});
+app.get('/auth/me', authorize, (_req, res) => res.json({ authenticated: true, role: 'admin' }));
+app.post('/auth/logout', authorize, (req, res) => { admin.logout(req.get('authorization')); res.json({ success: true }); });
 
-// Simple in-memory store
-const store = {
-    products: [{ id: 1, name: 'Demo Product', price: 89.90, stock: 100, status: 'published' }],
-    orders: [],
-    tasks: []
+const handlers = {
+  ping: async () => ({ pong: true, time: new Date().toISOString() }),
+  'health-check': async () => {
+    const url = 'http://' + (host === '::1' ? '[::1]' : host) + ':' + port + '/health';
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw new Error('Health HTTP ' + response.status);
+    const body = await response.json();
+    if (body.status !== 'healthy') throw new Error('Health returned unhealthy status');
+    return { status: body.status, checkedAt: new Date().toISOString() };
+  }
 };
+const wcConfigured = Boolean(process.env.WOOCOMMERCE_URL && process.env.WC_CONSUMER_KEY && process.env.WC_CONSUMER_SECRET);
+const wc = wcConfigured ? new WooCommerceClient({
+  baseUrl: process.env.WOOCOMMERCE_URL,
+  consumerKey: process.env.WC_CONSUMER_KEY,
+  consumerSecret: process.env.WC_CONSUMER_SECRET
+}) : null;
+if (wc) {
+  handlers['woo-create-draft'] = data => wc.createDraft(data);
+}
+const engine = new TaskEngine({ handlers });
 
-// Heartbeat tracking
-let heartbeat = Date.now();
+function requireWoo(req, res, next) {
+  if (!wc) return res.status(503).json({ error: 'not_configured', detail: 'WooCommerce credentials not configured' });
+  next();
+}
+function handleWooError(error, res) {
+  const status = Number.isInteger(error.status) && error.status >= 400 && error.status < 500 ? error.status : 502;
+  res.status(status).json({ error: 'woocommerce_error', detail: error.message });
+}
 
-// Health check
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'healthy',
-        version: '1.0.0',
-        uptime: process.uptime(),
-        timestamp: new Date().toISOString(),
-        heartbeat: heartbeat
+app.get('/health', (_req, res) => res.json({
+  status: 'healthy', service: 'droperagent-api', uptime: process.uptime(),
+  note: 'API health does not verify WordPress, WooCommerce, DSers or MCP'
+}));
+app.get('/tasks', authorize, (_req, res) => res.json({ queue: engine.stats(), tasks: engine.list() }));
+app.post('/task', authorize, (req, res) => {
+  try {
+    const { type, data, priority } = req.body || {};
+    const task = engine.create(type, data || {}, priority === undefined ? 1 : priority);
+    res.status(202).json({ success: true, task });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+app.get('/api/woo/products', authorize, requireWoo, async (req, res) => {
+  try {
+    const products = await wc.listProducts({
+      page: Number(req.query.page || 1), perPage: Number(req.query.per_page || 10), status: req.query.status
     });
+    res.json({ products: products.map(p => ({ id: p.id, name: p.name, status: p.status, price: p.price, stock_quantity: p.stock_quantity, categories: (p.categories || []).map(c => ({ name: c.name })) })), source: 'woocommerce' });
+  } catch (error) { handleWooError(error, res); }
 });
-
-// Task endpoints
-app.post('/task', (req, res) => {
-    const { type, data, priority } = req.body;
-    const task = {
-        id: Date.now(),
-        type,
-        data,
-        priority: priority || 1,
-        status: 'pending',
-        createdAt: new Date().toISOString()
-    };
-    store.tasks.push(task);
-    res.json({ success: true, task });
+app.get('/api/woo/products/:id', authorize, requireWoo, async (req, res) => {
+  try { const p = await wc.getProduct(Number(req.params.id)); res.json({ id: p.id, name: p.name, status: p.status, price: p.price, stock_quantity: p.stock_quantity, description: p.description }); }
+  catch (error) { handleWooError(error, res); }
 });
-
-app.get('/tasks', (req, res) => {
-    res.json({
-        queue: {
-            pending: store.tasks.filter(t => t.status === 'pending').length,
-            completed: store.tasks.filter(t => t.status === 'completed').length
-        },
-        tasks: store.tasks
-    });
+app.post('/api/woo/products/drafts', authorize, requireWoo, async (req, res) => {
+  try {
+    const product = await wc.createDraft(req.body || {});
+    res.status(201).json({ product, source: 'woocommerce' });
+  } catch (error) { handleWooError(error, res); }
 });
-
-// Dashboard
-app.get('/control', (req, res) => {
-    res.json({
-        store: { products: store.products.length, orders: store.orders.length },
-        agents: { count: 9, active: 9 },
-        tasks: store.tasks.length
-    });
+app.get('/api/woo/orders', authorize, requireWoo, async (req, res) => {
+  try {
+    const orders = await wc.listOrders({ page: Number(req.query.page || 1), perPage: Number(req.query.per_page || 10) });
+    res.json({ orders: orders.map(o => ({ id: o.id, status: o.status, total: o.total, currency: o.currency, date_created: o.date_created, items: (o.line_items || []).map(i => ({ name: i.name, quantity: i.quantity })) })), source: 'woocommerce' });
+  } catch (error) { handleWooError(error, res); }
 });
+app.get('/api/agents', authorize, (_req, res) => res.json({ agents: [], source: 'unconfigured', note: 'No OpenClaw telemetry connected' }));
+app.get('/control', authorize, (_req, res) => res.json({
+  supervisor: engine.stats(),
+  integrations: { wordpress: 'NOT_VERIFIED', woocommerce: wcConfigured ? 'CONFIGURED_NOT_VERIFIED' : 'NOT_CONFIGURED', dsers: 'NOT_CONFIGURED', mcp: 'NOT_IMPLEMENTED' },
+  note: 'No fabricated products, sales, agent activity or metrics'
+}));
+app.get('/', (_req, res) => res.json({
+  name: 'DroperAgent Local Supervisor', endpoints: ['/health', '/tasks', '/task', '/control', '/api/woo/products', '/api/woo/orders'],
+  integrations: 'Not yet connected to WordPress/WooCommerce/DSers'
+}));
 
-// Welcome
-app.get('/', (req, res) => {
-    res.json({
-        name: 'DroperAgent',
-        version: '1.0.0',
-        endpoints: ['/health', '/control', '/tasks', '/task']
-    });
-});
-
-// Start server
-const server = app.listen(PORT, () => {
-    heartbeat = Date.now();
-    console.log(`DroperAgent MCP Server running on port ${PORT}`);
-});
-
-// Update heartbeat
-setInterval(() => heartbeat = Date.now(), 10000);
-
-module.exports = { app, server };
+let server;
+function start() {
+  server = app.listen(port, host, () => {
+    console.log('DroperAgent supervisor listening at http://' + host + ':' + port);
+    engine.start();
+  });
+  return server;
+}
+if (require.main === module) start();
+module.exports = { app, engine, start, authorize };

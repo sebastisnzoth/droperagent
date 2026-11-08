@@ -1,108 +1,36 @@
-# DroperAgent - Estado de Ejecución
+# DROPERAGENT — verified status and next milestones
 
-## ✅ Tareas P0 Completadas
+Updated: 2026-11-07. Branch: `fix/unified-autonomous-engine`.
 
-### 1. Servidor MCP Restaurado y Funcional
-- **Estado**: ✅ COMPLETADO
-- **Endpoints**: 10 implementados con lógica real
-- **Prueba**: `curl http://localhost:3000/health` → `{"status":"healthy"}`
-- **Commits**: `83fa9f6`
+## Implemented in this branch (awaiting GitHub Actions verification)
+- `src/task-engine.js`: one on-disk JSON task queue, atomic replacement, retry/backoff, restart recovery for RUNNING tasks, single-process execution guard.
+- `src/index.js`: one worker and API share the queue. Background polling begins with the HTTP server. POST /task requires a configured bearer token. Server binds loopback by default.
+- `src/woocommerce-client.js`: real WooCommerce REST adapter with safe draft-only writes, credential and HTTPS checks, and unit tests.
+- `src/mcp-server.mjs`: genuine official MCP v2 stdio server exposing store status, products, orders and opt-in draft creation. Handshake/tools/list tested with a real SDK client; not yet connected to a live store.
+- `worker.js`: compatibility entrypoint; no independent task store and no shell command execution.
+- `start-worker.sh`: foreground combined service restart loop. It needs a separate operating-system service manager for login/reboot startup.
+- `tests/task-engine.test.js`: core regression tests. See CI logs for actual PASS/FAIL.
 
-### 2. WordPress Base Instalado
-- **Estado**: ✅ COMPLETADO
-- **Ubicación**: `/wordpress/`
-- **Archivos**: Verificados (index.php, wp-admin, etc.)
-- **demo.php**: Creado para testing
+## Not yet verified or implemented
+- WordPress installed and WooCommerce products persisted successfully in an ephemeral GitHub Actions MariaDB/WordPress sandbox (PR #3). WordPress on the user's Mac or production hosting is still unverified.
+- WooCommerce authentication credentials, real external HTTP API operations and product/order operations on a persistent deployment are not yet connected.
+- A working MCP protocol server has now been implemented as `src/mcp-server.mjs`. The official SDK client/server stdio handshake, tools/list and safe disconnected tool calls passed CI. Live WooCommerce-authenticated MCP calls remain unverified.
+- DSers and AliExpress account authorizations and order synchronization.
+- Automated software-development tasks through OpenClaw/Harness.
+- Production deployment, security hardening, and end-to-end commerce checkout.
 
-### 3. Endpoints con Lógica Real
+This local supervisor intentionally supports only `ping` and `health-check`. No fake products, orders, supplier inventory, tracking or agent counts are returned.
 
-#### `/api/task` - Ejecución Real de Tareas
-```bash
-POST /api/task
-{"agent": "store-architect", "action": "create-product", "data": {"name": "Test", "price": "99.90"}}
-```
-✅ Resultado: `{"success": true, "task": 1234567890, "result": {...}}`
+## Local operation
+From the cloned repository, using Node.js 22:
+1. Install dependencies with `npm install`.
+2. Configure a long random `DROPERAGENT_API_TOKEN` in a local `.env` (never commit it).
+3. Run `npm test`.
+4. Run `npm start` or `bash start-worker.sh`.
+5. POST to `http://127.0.0.1:3000/task` with `Authorization: Bearer <token>`, JSON `{"type":"ping"}`.
+6. Read `/tasks` with the same bearer token; results persist in `db/tasks.json` across restarts.
 
-#### `/api/agents` - Lista de Agentes
-✅ 9 agentes devueltos con status
+The local on-disk queue is single-process only and is not a distributed or SQLite transactional queue. Do not run two API/worker instances against the same store.
 
-#### `/control` - Dashboard
-✅ Métricas en tiempo real
-
-#### `/mcp` - Protocolo MCP
-✅ 4 herramientas principales definidas
-
-### 4. Almacenamiento Persistente
-- **Task Queue**: Implementado en memoria
-- **Store Data**: Products y Orders
-
-## 📊 Pruebas Realizadas
-
-### Health Check
-```bash
-curl http://localhost:3000/health
-```
-Result: `{"status":"healthy","version":"1.0.0"}` ✅
-
-### Task Execution
-```bash
-curl -X POST http://localhost:3000/api/task \
-  -H "Content-Type: application/json" \
-  -d '{"agent":"store-architect","action":"create-product","data":{"name":"Producto Test","price":"89.90"}}'
-```
-Result: `{"success":true,"task":1234567890,"result":{"product":{...}}}` ✅
-
-## 📁 Archivos Principales
-
-```
-/Volumes/Armazenamento/developer/test/droperagent-temp/
-├── src/index.js              # Servidor MCP funcional
-├── src/api/
-├── src/services/agent-manager.js
-├── wordpress/
-├── mcp-wordpress-plugin/
-└── docs/EXECUTION-STATUS.md
-```
-
-## 🎯 Próxima Tarea P0
-
-**Verificar WordPress accesible vía HTTP**
-
-Requiere:
-- Servidor web PHP (Apache/Nginx/embebido)
-- MySQL o SQLite
-
-Puedes iniciar con:
-```bash
-cd wordpress
-php -S localhost:8080
-```
-
-## ❌ Bloqueos Identificados
-
-1. **MySQL no instalado**: WordPress necesita base de datos
-   - Solución temporal: Usar demo.php o instalar MySQL
-
-2. **WooCommerce Plugin**: No instalado
-   - Necesario para tienda completa
-
-## 📝 Commits Recientes
-
-| SHA | Mensaje | Estado |
-|-----|---------|--------|
-| 83fa9f6 | fix: Implement real task execution | ✅ |
-| 7634273 | docs: Update estado actual | ✅ |
-| 48fe93d | docs: Estado actualizado | ✅ |
-| ... | ... | ... |
-
-## 🚀 Para Probar Localmente
-
-```bash
-cd droperagent-temp
-npm install
-npm start
-# Ver en http://localhost:3000/health
-```
-
----
-**Última actualización**: 2026-11-07T19:45:00-03:00
+## Next P0
+Verify the additional WooCommerce REST controller integration check in PR #3. Configure a genuine persistent WordPress test store, create limited-permission WooCommerce test API credentials, and test the adapter/MCP against it. Then connect the trusted local OpenClaw host using its supported MCP configuration. No external supplier payments or production use.

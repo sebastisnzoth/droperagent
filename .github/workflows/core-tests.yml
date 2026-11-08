@@ -1,0 +1,31 @@
+name: DroperAgent Core Tests
+on:
+  push:
+    branches: [main, "fix/**"]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax checks
+        run: |
+          node --check src/task-engine.js
+          node --check src/index.js
+          node --check src/woocommerce-client.js
+          node --check src/mcp-server.mjs
+          node --check worker.js
+      - name: Core and WooCommerce adapter unit tests (no external dependencies)
+        run: node --test tests/*.test.js
+      - name: Install MCP SDK dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Authenticated HTTP API security integration test
+        run: node --test tests/http-auth.test.mjs
+      - name: Real MCP client-server protocol test
+        run: node --test tests/mcp.test.mjs

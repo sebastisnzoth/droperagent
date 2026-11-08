@@ -1,24 +1,23 @@
 {
   "name": "droperagent",
-  "version": "1.0.0",
-  "description": "Agente de automatização para Dropshipping WooCommerce - Controlado por DeepSeek Harness",
+  "version": "1.0.1",
+  "description": "DroperAgent local supervisor (WordPress/WooCommerce integration pending)",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "worker": "node worker.js",
     "dev": "nodemon src/index.js",
-    "test": "jest",
+    "test": "node --test tests/*.test.js",
     "lint": "eslint src/**/*.js",
-    "health": "curl -s http://localhost:3000/health | jq"
+    "health": "curl -fsS http://127.0.0.1:3000/health",
+    "mcp": "node src/mcp-server.mjs",
+    "test:mcp": "node --test tests/mcp.test.mjs"
   },
   "keywords": [
-    "agent",
     "automation",
     "dropshipping",
     "woocommerce",
-    "dsers",
-    "ai",
-    "harness",
-    "mcp"
+    "agents"
   ],
   "author": "sebastisnzoth",
   "license": "MIT",
@@ -28,12 +27,15 @@
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",
     "express": "^4.22.3",
-    "woocommerce-rest-api": "^1.1.1"
+    "woocommerce-rest-api": "^1.1.1",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "eslint": "^8.57.0",
     "jest": "^29.7.0",
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.0",
+    "@modelcontextprotocol/client": "^2.4.0"
   },
   "engines": {
     "node": ">=18.0.0"
