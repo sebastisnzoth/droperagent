@@ -31,3 +31,16 @@ test('LIVE login and real API rendering are separate from DEMO data (mock transp
   await page.getByRole('button',{name:'Sair'}).click();
   await expect(page.getByText('AMBIENTE DEMO')).toBeVisible();
 });
+
+test('integration status reflects verified WooCommerce and never invents DSers connection', async ({page}) => {
+  await page.route('https://api.droperagent.test/health/woocommerce', route =>
+    route.fulfill({status:200,headers:{'access-control-allow-origin':'*','content-type':'application/json'},
+      body:JSON.stringify({configured:true,connected:true,checkedAt:'2026-11-08T06:00:00Z'})}));
+  await page.goto('./');
+  await page.getByRole('button',{name:'Explorar painel'}).click();
+  await page.getByRole('button',{name:'Integrações'}).click();
+  await expect(page.getByText('CONECTADO · API REST')).toHaveCount(2);
+  await expect(page.getByText('NÃO VERIFICADO PELA API')).toHaveCount(4);
+  await page.getByRole('button',{name:'Diagnóstico',exact:true}).click();
+  await expect(page.getByText('API REST CONECTADA')).toBeVisible();
+});
