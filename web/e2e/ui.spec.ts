@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import { mkdirSync } from 'node:fs';
+mkdirSync('screenshots', { recursive: true });
 
 test('desktop dashboard navigation, filter, theme and screenshot', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
