@@ -1,0 +1,91 @@
+name: WordPress + WooCommerce Integration (Sandbox)
+on:
+  push:
+    branches: ["feat/wordpress-woocommerce-ci-sandbox"]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  wordpress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DB_PASSWORD: ci_only_droperagent_password
+      DB_ROOT_PASSWORD: ci_only_root_password
+      WP_ADMIN_PASSWORD: ci_only_admin_password
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check compose syntax
+        run: docker compose config --quiet
+      - name: Start real WordPress and MariaDB
+        run: docker compose up -d db wordpress
+      - name: Wait for WordPress HTTP
+        run: |
+          ready=0
+          for i in $(seq 1 40); do
+            if curl --silent --output /dev/null --max-time 4 http://127.0.0.1:8080/; then ready=1; break; fi
+            sleep 3
+          done
+          test "$ready" -eq 1
+      - name: Install WordPress with WP-CLI
+        run: |
+          installed=0
+          for i in $(seq 1 25); do
+            if docker compose run --rm --user 0 --entrypoint wp wpcli core install --url=http://127.0.0.1:8080 --title='DroperAgent CI Sandbox' --admin_user=ci_admin --admin_password="$WP_ADMIN_PASSWORD" --admin_email=ci@example.invalid --skip-email --allow-root; then
+              installed=1
+              break
+            fi
+            sleep 4
+          done
+          test "$installed" -eq 1
+      - name: Fix shared volume ownership for WordPress PHP and WP-CLI
+        run: docker compose exec -T -u root wordpress chown -R www-data:www-data /var/www/html/wp-content
+      - name: Install and activate WooCommerce
+        run: |
+          docker compose run --rm --user 0 --entrypoint wp wpcli plugin install woocommerce --activate --allow-root
+          docker compose run --rm --user 0 --entrypoint wp wpcli plugin is-active woocommerce --allow-root
+          docker compose exec -T -u root wordpress chown -R www-data:www-data /var/www/html/wp-content
+      - name: Create and reread a real WooCommerce product via database
+        run: |
+          docker compose run --rm --user 0 --entrypoint wp wpcli eval '
+          $p = new WC_Product_Simple();
+          $p->set_name("CI Draft Product");
+          $p->set_status("draft");
+          $p->set_regular_price("19.90");
+          $id = $p->save();
+          if (!$id) { throw new Exception("Product creation failed"); }
+          update_option("droperagent_ci_product_id", $id);
+          echo "Created product id: " . $id . "\n";
+          ' --allow-root
+          docker compose run --rm --user 0 --entrypoint wp wpcli eval '
+          $id = (int) get_option("droperagent_ci_product_id");
+          $p = wc_get_product($id);
+          if (!$p || $p->get_name() !== "CI Draft Product" || $p->get_status() !== "draft") {
+            throw new Exception("Product did not persist");
+          }
+          echo "Persisted product id: " . $id . "\n";
+          ' --allow-root
+      - name: Verify real WooCommerce REST controller
+        run: |
+          docker compose run --rm --user 0 --entrypoint wp wpcli eval '
+          $user = get_user_by("login", "ci_admin");
+          if (!$user) { throw new Exception("CI admin missing"); }
+          wp_set_current_user($user->ID);
+          $id = (int) get_option("droperagent_ci_product_id");
+          $response = rest_do_request(new WP_REST_Request("GET", "/wc/v3/products/" . $id));
+          if ($response->get_status() !== 200) {
+            throw new Exception("WooCommerce REST status " . $response->get_status());
+          }
+          $product = $response->get_data();
+          if ((int)$product["id"] !== $id || $product["name"] !== "CI Draft Product") {
+            throw new Exception("WooCommerce REST data mismatch");
+          }
+          echo "WooCommerce REST controller PASS for product " . $id . "\n";
+          ' --allow-root
+      - name: Collect diagnostics on failure
+        if: failure()
+        run: docker compose logs --tail=100 --no-color
+      - name: Tear down isolated sandbox
+        if: always()
+        run: docker compose down -v
