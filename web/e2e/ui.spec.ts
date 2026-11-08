@@ -31,7 +31,7 @@ test('mobile navigation, layouts and screenshot', async ({ page }) => {
   await page.getByRole('button', { name: 'Abrir menu' }).click();
   await page.getByRole('button', { name: 'Integrações' }).click();
   await expect(page.getByRole('heading', { name: 'Integrações' })).toBeVisible();
-  await expect(page.getByText('NÃO CONFIGURADO').first()).toBeVisible();
+  await expect(page.getByText('NÃO VERIFICADO PELA API').first()).toBeVisible();
   await expect(page.locator('aside.sidebar')).not.toHaveClass(/open/);
   await expect.poll(() => page.locator('aside.sidebar').evaluate(el => getComputedStyle(el).left)).toBe('-270px');
   await page.screenshot({ path: 'screenshots/dashboard-mobile.png', fullPage: true, animations: 'disabled' });
