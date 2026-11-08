@@ -12,6 +12,7 @@ const { WooCommerceClient } = require('./woocommerce-client');
 const { createAdminAuth } = require('./live-auth');
 const { attachBridge } = require('./bridge-inbox');
 const { reviewCommerce } = require('./commerce-review');
+const { evaluateMapping } = require('./supplier-mapping-guard');
 
 const app = express();
 if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
@@ -141,6 +142,27 @@ app.post('/task', authorize, (req, res) => {
     res.status(202).json({ success: true, task });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
+  }
+});
+// DSers/WooCommerce mapping safety preflight: caller-supplied evidence only.
+// Read-only and authenticated; never contacts DSers or submits/pays supplier orders.
+app.post('/api/automation/mapping-preflight', authorize, (req, res) => {
+  const input = req.body || {};
+  if (!Array.isArray(input.storeVariants) || !Array.isArray(input.supplierVariants) || !Array.isArray(input.rules) ||
+      input.storeVariants.length > 100 || input.supplierVariants.length > 100 || input.rules.length > 100) {
+    return res.status(400).json({ error: 'invalid_mapping_input', detail: 'Use arrays up to 100 variants and mapping rules' });
+  }
+  try {
+    const audit = evaluateMapping({
+      storeVariants: input.storeVariants,
+      supplierVariants: input.supplierVariants,
+      rules: input.rules
+    });
+    // Audit decisions are advisory; even allMapped cannot authorize purchases.
+    res.json({ source: 'supplied_mapping_evidence', readOnly: true, supplierAccountVerified: false,
+      purchaseAuthorized: false, ...audit });
+  } catch (_) {
+    res.status(400).json({ error: 'invalid_mapping_input', detail: 'Invalid mapping options' });
   }
 });
 app.get('/api/woo/products', authorize, requireWoo, async (req, res) => {
