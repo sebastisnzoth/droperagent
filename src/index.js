@@ -19,6 +19,7 @@ const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 3000);
 const apiToken = process.env.DROPERAGENT_API_TOKEN || '';
 const admin = createAdminAuth({ apiToken });
+const workerEnabled = process.env.DROPERAGENT_DISABLE_WORKER !== '1';
 const allowedOrigin = process.env.DROPERAGENT_WEB_ORIGIN || 'https://sebastisnzoth.github.io';
 
 if (!apiToken && !admin.enabled && host !== '127.0.0.1' && host !== '::1') {
@@ -93,6 +94,7 @@ app.get('/health', (_req, res) => res.json({
 }));
 app.get('/tasks', authorize, (_req, res) => res.json({ queue: engine.stats(), tasks: engine.list() }));
 app.post('/task', authorize, (req, res) => {
+  if (!workerEnabled) return res.status(503).json({ error: 'worker_disabled', detail: 'Durable task storage must be configured before enabling writes' });
   try {
     const { type, data, priority } = req.body || {};
     const task = engine.create(type, data || {}, priority === undefined ? 1 : priority);
@@ -127,7 +129,7 @@ app.get('/api/woo/orders', authorize, requireWoo, async (req, res) => {
 });
 app.get('/api/agents', authorize, (_req, res) => res.json({ agents: [], source: 'unconfigured', note: 'No OpenClaw telemetry connected' }));
 app.get('/control', authorize, (_req, res) => res.json({
-  supervisor: engine.stats(),
+  supervisor: { ...engine.stats(), disabled: !workerEnabled, persistence: workerEnabled ? 'local_file_requires_persistent_disk' : 'disabled' },
   integrations: { wordpress: 'NOT_VERIFIED', woocommerce: wcConfigured ? 'CONFIGURED_NOT_VERIFIED' : 'NOT_CONFIGURED', dsers: 'NOT_CONFIGURED', mcp: 'NOT_IMPLEMENTED' },
   note: 'No fabricated products, sales, agent activity or metrics'
 }));
@@ -140,7 +142,8 @@ let server;
 function start() {
   server = app.listen(port, host, () => {
     console.log('DroperAgent supervisor listening at http://' + host + ':' + port);
-    engine.start();
+    if (workerEnabled) engine.start();
+    else console.log('Worker disabled: no durable storage configured');
   });
   return server;
 }
