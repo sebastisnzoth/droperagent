@@ -1,3 +1,27 @@
+# ATUALIZAÇÃO 2026-11-08 — PRIORIDADE: dLocal Go (PF Argentina → clientes Brasil)
+
+**Mercado Pago Brasil foi bloqueado no cadastro real do titular por exigir documento brasileiro. Não solicitar nova tentativa nem assumir aprovação via CPF/passaporte argentino. Esta alteração substitui a recomendação inicial de Mercado Pago.**
+
+**dLocal Go é candidato, ainda sujeito a aprovação:** aceita cadastro "Emprendedor Individual / Persona Física" em Argentina, pagamento local a clientes do Brasil, plugin oficial WooCommerce, e informa não cobrar mensalidades. A documentação pública não garante que o perfil específico do comerciante, documento e banco sejam aprovados, nem que Pix esteja ativado antes de KYC.
+
+- Cadastro: https://dashboard.dlocalgo.com/signup
+- Plugin oficial: https://wordpress.org/plugins/dlocal-go-payments-for-woocommerce/
+- PF/KYC e saque: https://helpcenter.dlocalgo.com/es/articles/7067139-que-documentos-necesito-para-crear-una-cuenta-en-dlocal-go
+- Venda internacional: https://helpcenter.dlocalgo.com/pt-BR/articles/7846587-em-que-paises-posso-vender-com-dlocal-go
+- Custos: https://helpcenter.dlocalgo.com/es/articles/6960181-que-costos-tengo-por-vender-con-dlocal-go
+
+## Gate de habilitação
+1. Usuário confirma que pode legalmente cadastrar sua atividade como pessoa física na Argentina e apresenta documentação verdadeira; exige banco em nome próprio e prova de endereço para **retirar** fundos.
+2. dLocal Go aprova KYC e libera **Pix Brasil** para comércio online, com confirmação escrita das condições, taxas e prazo de liquidação.
+3. Testar o plugin oficial com WooCommerce 11.x em staging ou ambiente de teste, checando Checkout Blocks e compatibilidade.
+4. Checkout real fica DESATIVADO até haver método aprovado de saque e conciliação.
+5. Pagamento a fornecedor AliExpress/DSers e retirada ao titular são operações separadas, com autorização e saldo liquidado. Nenhum split automático presumido.
+
+## Alternativa secundária
+InfinitePay permite abrir conta por CPF e oferece Checkout Integrado/API, porém exige validação a seu critério, não possui plugin WooCommerce oficial nem sandbox. API não oferece split/transferências a terceiros. https://www.infinitepay.io/checkout-documentacao
+
+---
+
 # DROPERAGENT — Pix Mercado Pago (PF/CPF) — plano de integração seguro
 Data: 2026-11-08. Estado: **não habilitado**, sem contratação nem cobrança. Escopo isolado de PRs #18–#23.
 
