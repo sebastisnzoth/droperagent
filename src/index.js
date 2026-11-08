@@ -47,7 +47,7 @@ function authorize(req, res, next) {
   next();
 }
 app.post('/auth/login', (req, res) => {
-  if (process.env.NODE_ENV === 'production' && !req.secure && process.env.TRUST_PROXY !== '1') {
+  if (process.env.NODE_ENV === 'production' && !req.secure) {
     return res.status(403).json({ error: 'https_required' });
   }
   const outcome = admin.login(req.body?.password, req.ip);
