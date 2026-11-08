@@ -22,7 +22,7 @@ Vite `base` is `/droperagent/`. The dashboard uses in-page navigation buttons ra
 
 ## Security and availability
 
-The UI defaults to DEMO with unmistakably illustrative records. LIVE is disabled unless the build environment explicitly supplies both `VITE_DROPERAGENT_API_URL=https://…` and `VITE_ENABLE_LIVE_READONLY=true`. This condition unlocks an HTTPS health-check view only; it does **not** authorize browsing WooCommerce customer or order data from a public static website. A production read-only API must enforce authenticated browser sessions, authorization, scoped CORS, rate limits and data minimization before real data views can be implemented.
+The UI defaults to DEMO with unmistakably illustrative records. LIVE is disabled unless the build environment explicitly supplies both `VITE_DROPERAGENT_API_URL=https://…` and `VITE_ENABLE_LIVE_READONLY=true`. LIVE now presents a password sign-in form. The backend issues a short-lived bearer session kept **only in this tab's memory**; an authenticated user can then read minimized WooCommerce product/order data and the local task queue from a permitted HTTPS API. The private WooCommerce keys stay on the backend. Without a persistent WooCommerce deployment and its approved credentials, the API correctly responds `not_configured` instead of returning invented records. Browser tests use explicitly mocked transport; they are not evidence of a live store.
 
 No private tokens, WooCommerce secrets, keys for OpenClaw, MCP or suppliers belong in `VITE_*` variables: Vite embeds these into public JavaScript bundles. GitHub Pages hosts only static content and never executes WordPress, MariaDB or Node workers.
 
