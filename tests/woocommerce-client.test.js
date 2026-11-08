@@ -54,3 +54,20 @@ test('propagates WooCommerce errors without declaring success', async () => {
   });
   await assert.rejects(() => client.getProduct(5), error => error.status === 401 && /Invalid consumer key/.test(error.message));
 });
+
+test('inspects payment gateway configuration without placing orders or payments', async () => {
+  const client = new WooCommerceClient({
+    baseUrl: 'https://store.example.test',
+    consumerKey: 'ck_test',
+    consumerSecret: 'cs_test',
+    fetchImpl: async (url, options) => {
+      assert.equal(options.method,'GET');
+      assert.ok(url.endsWith('/wp-json/wc/v3/payment_gateways'));
+      assert.equal(options.body,undefined);
+      return {ok:true,status:200,json:async()=>[{id:'bacs',enabled:true},{id:'pix',enabled:false}]};
+    }
+  });
+  const result = await client.listPaymentGateways();
+  assert.equal(result[0].id,'bacs');
+  assert.equal(result[1].enabled,false);
+});

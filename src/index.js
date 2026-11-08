@@ -148,6 +148,29 @@ app.post('/api/woo/products/drafts', authorize, requireWoo, async (req, res) => 
   } catch (error) { handleWooError(error, res); }
 });
 // Live review uses authenticated WooCommerce, never fabricates DSers orders, payments or market data.
+// Gateway configuration is NOT evidence that a charge was accepted or funds settled.
+app.get('/api/automation/payment-readiness', authorize, requireWoo, async (_req, res) => {
+  try {
+    const gateways = await wc.listPaymentGateways();
+    if (!Array.isArray(gateways)) return res.status(502).json({ error: 'invalid_payment_gateway_response' });
+    const providers = gateways.map(g => ({
+      id: typeof g.id === 'string' ? g.id : 'unknown',
+      enabled: Boolean(g.enabled),
+      description: typeof g.title === 'string' ? g.title.slice(0,80) : ''
+    }));
+    const enabled = providers.filter(g => g.enabled);
+    return res.json({
+      source:'woocommerce_authenticated', readOnly:true,
+      availableGatewayCount:providers.length,
+      enabledGateways:enabled,
+      onlinePaymentGatewayConfigured:enabled.some(g => !['bacs','cheque','cod'].includes(g.id)),
+      realChargeVerified:false, settlementVerified:false,
+      automaticSupplierPurchasesEnabled:false,
+      note:'Gateway enabled does not prove onboarding, customer payment or Pix settlement. No test charge attempted.'
+    });
+  } catch (error) { handleWooError(error,res); }
+});
+
 app.get('/api/automation/review', authorize, requireWoo, async (_req, res) => {
   try {
     const [products, orders] = await Promise.all([
@@ -182,6 +205,15 @@ function start() {
     console.log('DroperAgent supervisor listening at http://' + host + ':' + port);
     if (workerEnabled) engine.start();
     else console.log('Worker disabled: no durable storage configured');
+    // Boot-time read-only audit; logs only gateway IDs, never credentials or customer data.
+    if (wc) wc.listPaymentGateways().then(gateways => {
+      const enabled = Array.isArray(gateways)
+        ? gateways.filter(g => g && g.enabled && typeof g.id === 'string').map(g => g.id.slice(0,50))
+        : [];
+      console.log('WooCommerce enabled payment gateway IDs:', JSON.stringify(enabled));
+      console.log('WooCommerce customer charge/settlement: NOT_VERIFIED');
+    }).catch(() => console.log('WooCommerce payment gateway inspection: UNAVAILABLE'));
+
   });
   return server;
 }
