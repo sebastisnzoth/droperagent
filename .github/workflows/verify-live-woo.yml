@@ -1,0 +1,33 @@
+name: Verify live WooCommerce connection
+on:
+  push:
+    branches: [test/woo-live-connection-probe]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Probe public read-only status endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== DROPERAGENT WOO CONNECTION STATUS ==="
+          for i in $(seq 1 8); do
+            code=$(curl -sS --max-time 20 -o /tmp/woo-probe.json -w '%{http_code}' 'https://droperagent-api.onrender.com/health/woocommerce' || true)
+            if [ "$code" = 200 ]; then
+              python3 - <<'PY'
+          import json
+          x=json.load(open('/tmp/woo-probe.json'))
+          print('configured:',bool(x.get('configured')))
+          print('connected:',bool(x.get('connected')))
+          print('checkedAt:',x.get('checkedAt'))
+          PY
+              exit 0
+            fi
+            echo "HTTP $code; retrying"
+            sleep 8
+          done
+          echo 'No HTTP 200 from live endpoint'
+          exit 1
