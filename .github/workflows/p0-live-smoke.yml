@@ -1,0 +1,27 @@
+name: DROPERAGENT P0 External LIVE Smoke
+on:
+  push:
+    branches: [test/p0-live-public-smoke-20261108]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/live-public-smoke.mjs'
+      - '.github/workflows/p0-live-smoke.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+permissions:
+  contents: read
+jobs:
+  public-live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check script syntax
+        run: node --check scripts/live-public-smoke.mjs
+      - name: Verify production HTTPS, identity, WooCommerce, CORS, auth boundaries and Pages
+        run: node scripts/live-public-smoke.mjs
