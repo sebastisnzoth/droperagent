@@ -78,6 +78,30 @@ const wc = wcConfigured ? new WooCommerceClient({
 if (wc) {
   handlers['woo-create-draft'] = data => wc.createDraft(data);
 }
+// Safe, read-only connectivity check. Never returns keys, product data or provider errors.
+// Cache in-flight probes to avoid public polling hammering the WooCommerce host.
+let wooProbe = { checkedAt: 0, connected: false };
+let wooProbePending = null;
+app.get('/health/woocommerce', async (_req, res) => {
+  if (!wc) return res.json({ configured: false, connected: false, checkedAt: null });
+  const now = Date.now();
+  if (now - wooProbe.checkedAt < 300000) {
+    return res.json({ configured: true, connected: wooProbe.connected, checkedAt: new Date(wooProbe.checkedAt).toISOString() });
+  }
+  if (!wooProbePending) {
+    wooProbePending = (async () => {
+      let connected = false;
+      try {
+        const products = await wc.listProducts({ page: 1, perPage: 1 });
+        connected = Array.isArray(products);
+      } catch (_) { /* Do not leak sensitive provider errors to public clients. */ }
+      wooProbe = { checkedAt: Date.now(), connected };
+    })().finally(() => { wooProbePending = null; });
+  }
+  await wooProbePending;
+  return res.json({ configured: true, connected: wooProbe.connected, checkedAt: new Date(wooProbe.checkedAt).toISOString() });
+});
+
 const engine = new TaskEngine({ handlers });
 
 function requireWoo(req, res, next) {
