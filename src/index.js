@@ -10,11 +10,12 @@ const crypto = require('node:crypto');
 const { TaskEngine } = require('./task-engine');
 const { WooCommerceClient } = require('./woocommerce-client');
 const { createAdminAuth } = require('./live-auth');
+const { attachBridge } = require('./bridge-inbox');
 
 const app = express();
 if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
 app.disable('x-powered-by');
-app.use(express.json({ limit: '32kb' }));
+app.use(express.json({ limit: '32kb', verify: (req, _res, buf) => { if (req.path === '/api/bridge/products') req.rawBody = buf.toString('utf8'); } }));
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 3000);
 const apiToken = process.env.DROPERAGENT_API_TOKEN || '';
@@ -127,6 +128,7 @@ app.get('/api/woo/orders', authorize, requireWoo, async (req, res) => {
     res.json({ orders: orders.map(o => ({ id: o.id, status: o.status, total: o.total, currency: o.currency, date_created: o.date_created, items: (o.line_items || []).map(i => ({ name: i.name, quantity: i.quantity })) })), source: 'woocommerce' });
   } catch (error) { handleWooError(error, res); }
 });
+attachBridge(app, authorize);
 app.get('/api/agents', authorize, (_req, res) => res.json({ agents: [], source: 'unconfigured', note: 'No OpenClaw telemetry connected' }));
 app.get('/control', authorize, (_req, res) => res.json({
   supervisor: { ...engine.stats(), disabled: !workerEnabled, persistence: workerEnabled ? 'local_file_requires_persistent_disk' : 'disabled' },
