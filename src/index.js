@@ -90,7 +90,7 @@ function handleWooError(error, res) {
 }
 
 app.get('/health', (_req, res) => res.json({
-  status: 'healthy', service: 'droperagent-api', uptime: process.uptime(),
+  status: 'healthy', service: 'droperagent-api', uptime: process.uptime(), serverTimeMs: Date.now(),
   note: 'API health does not verify WordPress, WooCommerce, DSers or MCP'
 }));
 app.get('/tasks', authorize, (_req, res) => res.json({ queue: engine.stats(), tasks: engine.list() }));
