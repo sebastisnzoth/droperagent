@@ -83,6 +83,47 @@ jobs:
           }
           echo "WooCommerce REST controller PASS for product " . $id . "\n";
           ' --allow-root
+      - name: Verify WooCommerce REST API authenticated over HTTPS (real network)
+        run: |
+          mkdir -p .ci/certs
+          openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
+            -keyout .ci/certs/server.key -out .ci/certs/server.crt \
+            -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+          docker compose run --rm --user 0 --entrypoint wp wpcli rewrite structure '/%postname%/' --hard --allow-root
+          docker compose run --rm --user 0 --entrypoint wp wpcli option update home 'https://localhost:8443' --allow-root
+          docker compose run --rm --user 0 --entrypoint wp wpcli option update siteurl 'https://localhost:8443' --allow-root
+          docker compose exec -T -u root wordpress chown -R www-data:www-data /var/www/html/wp-content
+          docker compose run --rm --user 0 --entrypoint wp wpcli eval '
+          $user = get_user_by("login","ci_admin");
+          if (!$user) { throw new Exception("CI user not found"); }
+          $key = "ck_" . bin2hex(random_bytes(20));
+          $secret = "cs_" . bin2hex(random_bytes(20));
+          global $wpdb;
+          $ok = $wpdb->insert($wpdb->prefix . "woocommerce_api_keys", [
+            "user_id" => $user->ID,
+            "description" => "Disposable HTTPS API E2E",
+            "permissions" => "read_write",
+            "consumer_key" => wc_api_hash($key),
+            "consumer_secret" => $secret,
+            "truncated_key" => substr($key,-7)
+          ]);
+          if (!$ok) { throw new Exception("Failed to create WooCommerce REST key"); }
+          file_put_contents("/var/www/html/wp-content/ci-rest-keys", $key . "\n" . $secret . "\n");
+          ' --allow-root
+          docker compose exec -T -u root wordpress cat /var/www/html/wp-content/ci-rest-keys > .ci/woo-keys
+          chmod 600 .ci/woo-keys
+          docker compose --profile ci up -d https-proxy
+          ready=0
+          for attempt in $(seq 1 20); do
+            if curl --silent --insecure --fail https://localhost:8443/wp-json/ -o /dev/null; then ready=1; break; fi
+            sleep 2
+          done
+          test "$ready" -eq 1
+          mapfile -t creds < .ci/woo-keys
+          WOO_CI_KEY="${creds[0]}" WOO_CI_SECRET="${creds[1]}" \
+            NODE_EXTRA_CA_CERTS="$PWD/.ci/certs/server.crt" \
+            node tests/woocommerce-https-e2e.cjs
+          rm -f .ci/woo-keys
       - name: Collect diagnostics on failure
         if: failure()
         run: docker compose logs --tail=100 --no-color
