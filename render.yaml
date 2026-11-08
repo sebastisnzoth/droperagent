@@ -1,0 +1,28 @@
+# Declarative deployment template for an isolated API, not WordPress hosting.
+# This does not manage, reference, or modify any UGO service.
+# Free Render instances have ephemeral storage: task processing is intentionally off.
+services:
+  - type: web
+    name: droperagent-api
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: npm install --ignore-scripts --no-audit --no-fund
+    startCommand: node src/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: TRUST_PROXY
+        value: "1"
+      - key: DROPERAGENT_DISABLE_WORKER
+        value: "1"
+      - key: DROPERAGENT_WEB_ORIGIN
+        value: https://sebastisnzoth.github.io
+      - key: DROPERAGENT_ADMIN_PASSWORD
+        sync: false
+      # Add WOOCOMMERCE_URL, WC_CONSUMER_KEY and WC_CONSUMER_SECRET
+      # as private environment variables only after obtaining approved test-store credentials.
