@@ -13,7 +13,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "=== DROPERAGENT WOO CONNECTION STATUS ==="
+          echo "=== DROPERAGENT POST-DEPLOY WOO CONNECTION STATUS ==="
           for i in $(seq 1 14); do
             code=$(curl -sS --max-time 20 -o /tmp/woo-probe.json -w '%{http_code}' 'https://droperagent-api.onrender.com/health/woocommerce' || true)
             if [ "$code" = 200 ]; then
