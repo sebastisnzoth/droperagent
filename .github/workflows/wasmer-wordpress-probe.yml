@@ -20,7 +20,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import urllib.request, urllib.error, urllib.parse, json, socket, ssl, os
+          import urllib.request, urllib.error, urllib.parse, json, socket, ssl, os, sys
           host='wordpress-2c113.wasmer.app'
           base='https://'+host
           try:
@@ -28,6 +28,7 @@ jobs:
               print('DNS_RESOLVED: YES (address count: %d)' % len(addrs))
           except Exception as exc:
               print('DNS_RESOLVED: NO (%s)' % type(exc).__name__)
+          reachable=0
           for path in ('/','/wp-json/','/?rest_route=/','/wp-json/wc/v3/products','/wp-json/wc/v3/'):
               req=urllib.request.Request(base+path,headers={'User-Agent':'DroperAgent-readiness/1.0','Accept':'application/json,text/html;q=0.7'})
               try:
@@ -41,6 +42,7 @@ jobs:
               except Exception as exc:
                   print('PROBE %s NETWORK_ERROR %s' % (path,type(exc).__name__))
                   continue
+              reachable+=1
               try:
                   payload=json.loads(data.decode('utf-8','replace'))
                   if isinstance(payload,dict):
@@ -53,4 +55,7 @@ jobs:
                       print('PROBE %s HTTP_%s content=%s json_non_object' % (path,code,mime.split(';')[0]))
               except Exception:
                   print('PROBE %s HTTP_%s content=%s body_not_json redirect=%s' % (path,code,mime.split(';')[0],urllib.parse.urlsplit(final).hostname))
+          if not reachable:
+              print('RESULT: UNREACHABLE - no HTTP response from target, cannot confirm WordPress or WooCommerce online')
+              sys.exit(1)
           PY
