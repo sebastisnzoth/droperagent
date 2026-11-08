@@ -67,6 +67,11 @@ class WooCommerceClient {
     });
   }
 
+  listPaymentGateways() {
+    // Read-only WooCommerce REST v3 endpoint. Never call settings update APIs.
+    return this.request('GET', 'payment_gateways');
+  }
+
   listOrders({ page = 1, perPage = 10 } = {}) {
     if (!Number.isInteger(page) || page < 1) throw new Error('Invalid page');
     if (!Number.isInteger(perPage) || perPage < 1 || perPage > 100) throw new Error('Invalid perPage');
