@@ -6,7 +6,7 @@ test('LIVE login and real API rendering are separate from DEMO data (mock transp
     const headers={'access-control-allow-origin':'*','access-control-allow-headers':'Authorization, Content-Type','access-control-allow-methods':'GET,POST,OPTIONS','content-type':'application/json'};
     if(route.request().method()==='OPTIONS')return route.fulfill({status:204,headers});
     const cases:Record<string,unknown>={
-      '/health':{status:'healthy'},
+      '/health':{status:'healthy',service:'droperagent-api'},
       '/auth/login':{token:'test-only-memory-token',expiresIn:900},
       '/auth/logout':{success:true},
       '/api/woo/products':{products:[{id:77,name:'Produto API autenticado',status:'draft',price:'33.00',stock_quantity:5,categories:[]}]},
@@ -19,6 +19,7 @@ test('LIVE login and real API rendering are separate from DEMO data (mock transp
   });
   await page.goto('./');
   await page.getByRole('button',{name:'Explorar painel'}).click();
+  await expect(page.getByRole('button',{name:'Modo LIVE'})).toBeEnabled();
   await page.getByRole('button',{name:'Modo LIVE'}).click();
   await page.getByLabel('Senha do administrador').fill('browser-test-only-password');
   await page.getByRole('button',{name:'Entrar no modo LIVE'}).click();
@@ -39,8 +40,18 @@ test('integration status reflects verified WooCommerce and never invents DSers c
   await page.goto('./');
   await page.getByRole('button',{name:'Explorar painel'}).click();
   await page.getByRole('button',{name:'Integrações'}).click();
-  await expect(page.getByText('CONECTADO · API REST')).toHaveCount(2);
+  await expect(page.getByText('CONECTADO · API REST')).toHaveCount(1);
+  await expect(page.getByText('NÃO VERIFICADO SEPARADAMENTE')).toHaveCount(1);
   await expect(page.getByText('NÃO VERIFICADO PELA API')).toHaveCount(4);
   await page.getByRole('button',{name:'Diagnóstico',exact:true}).click();
   await expect(page.getByText('API REST CONECTADA')).toBeVisible();
+});
+
+
+test('unverified API must never unlock LIVE just from build-time URL', async ({page}) => {
+  await page.route('https://api.droperagent.test/health',route=>route.fulfill({status:200,headers:{'access-control-allow-origin':'*','content-type':'application/json'},body:JSON.stringify({status:'healthy',service:'different-service'})}));
+  await page.goto('./');
+  await page.getByRole('button',{name:'Explorar painel'}).click();
+  await expect(page.getByRole('button',{name:'Modo LIVE'})).toBeDisabled();
+  await expect(page.getByText('AMBIENTE DEMO')).toBeVisible();
 });
