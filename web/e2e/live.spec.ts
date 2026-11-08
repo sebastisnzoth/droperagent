@@ -67,6 +67,6 @@ test('backend outage keeps LIVE locked until manual retry verifies service ident
   await page.getByRole('button',{name:'Explorar painel'}).click();
   await expect(page.getByRole('button',{name:'Modo LIVE'})).toBeDisabled();
   healthy=true;
-  await page.getByRole('button',{name:'Atualizar status'}).click();
+  await page.getByRole('button',{name:'Verificar conexão'}).click();
   await expect(page.getByRole('button',{name:'Modo LIVE'})).toBeEnabled();
 });
