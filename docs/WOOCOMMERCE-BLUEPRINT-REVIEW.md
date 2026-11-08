@@ -24,6 +24,17 @@ The user-provided `woo-blueprint.json` is an export of intended WordPress/WooCom
 - `woocommerce_currency=BRL` and `woocommerce_default_country=BR:SC` -> consistent with Brazil Santa Catarina intent, but are not proof of tax or payment readiness.
 - Supplied export includes site-specific identifier/metadata fields; do not commit the raw exported JSON or log their values.
 
+## Leitura adicional da loja LIVE — 8 nov 2026 (sem escritas)
+
+Consulta autenticada, somente leitura, da instância `https://droperagent.cu.ma/` pelo MCP de WordPress:
+- WooCommerce 11.2.2 e moeda `BRL`.
+- Impostos desativados (`tax.enabled=false`). Isso exige revisão fiscal antes de habilitar checkout comercial; não alterar automaticamente.
+- A zona padrão de entrega retornada (ID 0) não possui métodos de frete. Outras zonas e destinos precisam ser verificados separadamente.
+- Plugin `dLocal Go Payments` versão 2.0.5 instalado/ativo; gateway `dlocal_go` consta como `enabled:true`. `bacs`, `cheque` e `cod` seguem desativados.
+- **Método habilitado não comprova credenciais corretas, onboarding aprovado, Pix disponível, pagamento confirmado nem liquidação.** O modo sandbox/produção não foi verificado e nenhum pagamento foi criado.
+- A loja apresentou 0 produtos e 0 pedidos na consulta de leitura.
+- Estes dados LIVE não autorizam importação do blueprint, SQL, mutação fiscal ou qualquer transação.
+
 ## Validation
 `node --test tests/woo-blueprint-audit.test.js` followed by `npm test` and the GitHub Actions CI. A successful isolated CI run does not mean the user's live store was inspected.
 
