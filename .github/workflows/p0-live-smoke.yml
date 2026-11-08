@@ -8,6 +8,8 @@ on:
       - 'scripts/live-public-smoke.mjs'
       - '.github/workflows/p0-live-smoke.yml'
   workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
 permissions:
   contents: read
 jobs:
