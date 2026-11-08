@@ -11,6 +11,7 @@ const { TaskEngine } = require('./task-engine');
 const { WooCommerceClient } = require('./woocommerce-client');
 const { createAdminAuth } = require('./live-auth');
 const { attachBridge } = require('./bridge-inbox');
+const { reviewCommerce } = require('./commerce-review');
 
 const app = express();
 if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
@@ -146,6 +147,17 @@ app.post('/api/woo/products/drafts', authorize, requireWoo, async (req, res) => 
     res.status(201).json({ product, source: 'woocommerce' });
   } catch (error) { handleWooError(error, res); }
 });
+// Live review uses authenticated WooCommerce, never fabricates DSers orders, payments or market data.
+app.get('/api/automation/review', authorize, requireWoo, async (_req, res) => {
+  try {
+    const [products, orders] = await Promise.all([
+      wc.listProducts({ page: 1, perPage: 50 }),
+      wc.listOrders({ page: 1, perPage: 50 }),
+    ]);
+    res.json(reviewCommerce(products, orders));
+  } catch (error) { handleWooError(error, res); }
+});
+
 app.get('/api/woo/orders', authorize, requireWoo, async (req, res) => {
   try {
     const orders = await wc.listOrders({ page: Number(req.query.page || 1), perPage: Number(req.query.per_page || 10) });
