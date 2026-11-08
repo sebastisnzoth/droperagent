@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 process.env.DROPERAGENT_ADMIN_PASSWORD = 'strong-ci-only-admin-password';
 process.env.DROPERAGENT_API_TOKEN = '';
 process.env.NODE_ENV = 'test';
+process.env.DROPERAGENT_DISABLE_WORKER = '1';
 process.env.HOST = '127.0.0.1';
 const { app } = require('../src/index.js');
 
@@ -38,6 +39,8 @@ test('admin session, protected data, logout, and CORS actually work over HTTP', 
     assert.equal(response.status, 200);
     const data = await response.json();
     assert.ok(Array.isArray(data.tasks));
+    response = await request('/task', { method:'POST', headers: {...auth,'Content-Type':'application/json'}, body: JSON.stringify({type:'ping'}) });
+    assert.equal(response.status, 503); // ephemeral hosting must not accept pseudo-persistent tasks
     response = await request('/api/woo/products', {headers:auth});
     assert.equal(response.status, 503); // no real Woo credentials; never return demo data
     response = await fetch(base + '/tasks', {headers:{...auth,origin:'https://hostile.example'}});
