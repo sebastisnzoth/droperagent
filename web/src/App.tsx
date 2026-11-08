@@ -9,6 +9,13 @@ type Agent = { name: string; area: string; icon: string };
 type LiveProduct = { id: number; name: string; status: string; price: string; stock_quantity: number | null; categories: { name: string }[] };
 type LiveOrder = { id: number; status: string; total: string; currency: string; date_created: string; items: { name: string; quantity: number }[] };
 type LiveTask = { id: string; type: string; status: string; createdAt: string };
+type CommerceReview = {
+  observedAt: string;
+  scope: { productsScanned: number; ordersScanned: number };
+  summary: { publishedProducts: number; productsWithVerifiedLandedCost: number; paidOrdersForSupplierReview: number; automaticSupplierPaymentsEnabled: boolean };
+  products: { id: number; name: string; price: string; estimatedGrossMarginPercent: number | null; recommendation: string; blockers: string[] }[];
+  orders: { id: number; status: string; paid: boolean; requiresSupplierReview: boolean; nextStep: string }[];
+};
 
 const products: Item[] = [
   { id: 'PRD-0001', name: 'Luminária de mesa portátil', category: 'Casa & decoração', price: 'R$ 129,90', stock: 42, status: 'Rascunho' },
@@ -120,6 +127,8 @@ function App() {
   const [liveTasks,setLiveTasks]=useState<LiveTask[]>([]);
   const [liveAgents,setLiveAgents]=useState<{name:string; status:string}[]>([]);
   const [liveLoading,setLiveLoading]=useState(false);
+  const [commerceReview,setCommerceReview]=useState<CommerceReview|null>(null);
+  const [commerceReviewError,setCommerceReviewError]=useState('');
 
   async function login(event: React.FormEvent) {
     event.preventDefault();
@@ -160,6 +169,16 @@ function App() {
     .finally(()=>{if(!cancelled)setLiveLoading(false);});
     return ()=>{cancelled=true;controller.abort();};
   },[mode,authToken]);
+  useEffect(()=>{
+    if(mode!=='LIVE'||!authToken||!allowedLive){setCommerceReview(null);setCommerceReviewError('');return;}
+    let cancelled=false;
+    const controller=new AbortController();
+    fetch(publicAPI+'/api/automation/review',{headers:{Authorization:'Bearer '+authToken},signal:controller.signal})
+      .then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+      .then(data=>{if(!cancelled){setCommerceReview(data as CommerceReview);setCommerceReviewError('');}})
+      .catch(e=>{if(!cancelled){setCommerceReview(null);setCommerceReviewError(e instanceof Error?e.message:'Falha na consulta de automação');}});
+    return ()=>{cancelled=true;controller.abort();};
+  },[mode,authToken]);
   const demo=mode==='DEMO';
   const changePage=(p:Page)=>{setPage(p);setSearch('');};
   useEffect(()=>{document.documentElement.dataset.theme=theme;window.localStorage.setItem('droper-theme',theme)},[theme]);
@@ -177,7 +196,14 @@ function App() {
       {!demo&&!authToken&&<section className="panel login-panel"><h3>Acesso administrativo</h3><p>Entre com sua senha de administrador. A sessão fica somente na memória desta aba e expira automaticamente no servidor.</p><form onSubmit={login}><label htmlFor="adminPassword">Senha do administrador</label><input id="adminPassword" type="password" autoComplete="current-password" required minLength={1} value={password} onChange={e=>setPassword(e.target.value)}/><button className="primary" type="submit" disabled={loginBusy}>{loginBusy?'Entrando…':'Entrar no modo LIVE'}</button></form>{loginError&&<p role="alert" className="error-message">{loginError}</p>}</section>}
       {!demo&&authToken&&<div className="live-session"><span><LockKeyhole size={16}/> Sessão administrativa ativa · {liveLoading?'Atualizando dados reais…':'Dados consultados na API segura'}</span><button className="outline-btn" onClick={logout}>Sair</button></div>}
       {!demo&&authToken&&dataError&&<p role="alert" className="error-message">{dataError}. Nenhum dado fictício será exibido.</p>}
-      {page==='overview'&&<><Stats demo={demo} productCount={authToken&&!dataError?liveProducts.length:-1} orderCount={authToken&&!dataError?liveOrders.length:-1}/><div className="two-column"><Panel title="Visão do catálogo" subtitle="Amostra dos últimos produtos" action={<button className="text-action" onClick={()=>changePage('products')}>Ver todos <ArrowUpRight size={15}/></button>}>{demo?<ProductTable demo search=""/>:authToken&&!dataError?<LiveProducts data={liveProducts} search=""/>:<Empty title="Sem dados autenticados" detail="Conecte a sessão LIVE e confira a disponibilidade da API."/>}</Panel><Panel title="Atividade da operação" subtitle={demo?'Cenário demonstrativo':'Nenhuma atividade real disponível'}>{demo?<div className="activity-list">{[{label:'Produto adicionado ao catálogo',meta:'Simulação • há 12 minutos',icon:Package},{label:'Pedido atualizado',meta:'Simulação • há 42 minutos',icon:ShoppingBag},{label:'Verificação de integração',meta:'Simulação • há 2 horas',icon:Activity}].map(({label,meta,icon:Icon})=><div className="activity" key={label}><span className="activity-icon"><Icon size={18}/></span><div><strong>{label}</strong><small>{meta}</small></div><span className="activity-mark"/></div>)}</div>:<Empty title="Sem atividade verificada" detail="Conecte um backend seguro para visualizar logs reais."/>}</Panel></div><Pipeline/></>}
+      {page==='overview'&&<><Stats demo={demo} productCount={authToken&&!dataError?liveProducts.length:-1} orderCount={authToken&&!dataError?liveOrders.length:-1}/><div className="two-column"><Panel title="Visão do catálogo" subtitle="Amostra dos últimos produtos" action={<button className="text-action" onClick={()=>changePage('products')}>Ver todos <ArrowUpRight size={15}/></button>}>{demo?<ProductTable demo search=""/>:authToken&&!dataError?<LiveProducts data={liveProducts} search=""/>:<Empty title="Sem dados autenticados" detail="Conecte a sessão LIVE e confira a disponibilidade da API."/>}</Panel><Panel title="Atividade da operação" subtitle={demo?'Cenário demonstrativo':'Nenhuma atividade real disponível'}>{demo?<div className="activity-list">{[{label:'Produto adicionado ao catálogo',meta:'Simulação • há 12 minutos',icon:Package},{label:'Pedido atualizado',meta:'Simulação • há 42 minutos',icon:ShoppingBag},{label:'Verificação de integração',meta:'Simulação • há 2 horas',icon:Activity}].map(({label,meta,icon:Icon})=><div className="activity" key={label}><span className="activity-icon"><Icon size={18}/></span><div><strong>{label}</strong><small>{meta}</small></div><span className="activity-mark"/></div>)}</div>:<Empty title="Sem atividade verificada" detail="Conecte um backend seguro para visualizar logs reais."/>}</Panel></div><Pipeline/>{!demo&&<Panel title="Análise de comércio real" subtitle="Somente leitura · WooCommerce autenticado · sem pedidos ou pagamentos automáticos">{authToken?commerceReview?<div className="info-list">
+  <div><span>Produtos consultados</span><strong>{commerceReview.scope.productsScanned}</strong></div>
+  <div><span>Produtos com custo verificado</span><strong>{commerceReview.summary.productsWithVerifiedLandedCost}</strong></div>
+  <div><span>Pedidos pagos aguardando revisão DSers</span><strong>{commerceReview.summary.paidOrdersForSupplierReview}</strong></div>
+  <div><span>Pagamento automático a fornecedores</span><strong>DESATIVADO</strong></div>
+  <div><span>Melhores candidatos do catálogo</span><strong>{commerceReview.products.slice(0,3).map(p=>p.name).join(' · ')||'Nenhum'}</strong></div>
+  <div><span>Margens calculadas</span><strong>{commerceReview.products.filter(p=>p.estimatedGrossMarginPercent!==null).length} com custo comprovado</strong></div>
+  </div>:<Empty title={commerceReviewError?'Falha na análise':'Consultando WooCommerce'} detail={commerceReviewError||'Analisando produtos e pedidos reais…'}/>:<Empty title="Requer sessão LIVE" detail="Entre com sua senha administrativa para executar a análise real."/>}</Panel>}</>}
       {page==='products'&&<Panel title="Catálogo de produtos" subtitle={demo?'4 registros de exemplo — sem conexão WooCommerce':'Nenhuma consulta comercial disponível'}><SectionToolbar search={search} setSearch={setSearch} placeholder="Buscar por produto ou categoria..."/>{demo?<ProductTable demo search={search}/>:authToken&&!dataError?<LiveProducts data={liveProducts} search={search}/>:<Empty title="Autenticação necessária" detail="Entre no modo LIVE para consultar produtos reais."/>}</Panel>}
       {page==='orders'&&<Panel title="Todos os pedidos" subtitle={demo?'Pedidos fictícios para validar a interface':'Pedidos reais indisponíveis'}><SectionToolbar search={search} setSearch={setSearch} placeholder="Buscar pedido ou cliente..."/>{demo?<OrdersTable demo search={search}/>:authToken&&!dataError?<LiveOrders data={liveOrders} search={search}/>:<Empty title="Autenticação necessária" detail="Entre no modo LIVE para consultar pedidos reais."/>}</Panel>}
       {page==='agents'&&<><Panel title="Especialidades do sistema" subtitle="Papéis planejados; nenhum agente de IA está verificado como online"><div className="agent-grid">{(demo?agents:[]).map(a=><div className="agent-card" key={a.name}><div className="agent-head"><span className="agent-mark">{a.icon}</span><span className="agent-offline">NÃO CONECTADO</span></div><strong>{a.name}</strong><small>{a.area}</small><div className="agent-line"><Activity size={14}/> Sem execução comprovada</div></div>)}</div>{!demo&&<Empty title={liveAgents.length?'Agentes consultados':'Nenhum agente conectado'} detail="Nenhuma telemetria real de agentes foi recebida."/>}</Panel></>}
