@@ -1,36 +1,31 @@
-# DROPERAGENT — verified status and next milestones
+# DROPERAGENT — Estado real verificado
 
-Updated: 2026-11-07. Branch: `fix/unified-autonomous-engine`.
+Atualizado: 2026-11-08. Branch de referência: `main`.
 
-## Implemented in this branch (awaiting GitHub Actions verification)
-- `src/task-engine.js`: one on-disk JSON task queue, atomic replacement, retry/backoff, restart recovery for RUNNING tasks, single-process execution guard.
-- `src/index.js`: one worker and API share the queue. Background polling begins with the HTTP server. POST /task requires a configured bearer token. Server binds loopback by default.
-- `src/woocommerce-client.js`: real WooCommerce REST adapter with safe draft-only writes, credential and HTTPS checks, and unit tests.
-- `src/mcp-server.mjs`: genuine official MCP v2 stdio server exposing store status, products, orders and opt-in draft creation. Handshake/tools/list tested with a real SDK client; not yet connected to a live store.
-- `worker.js`: compatibility entrypoint; no independent task store and no shell command execution.
-- `start-worker.sh`: foreground combined service restart loop. It needs a separate operating-system service manager for login/reboot startup.
-- `tests/task-engine.test.js`: core regression tests. See CI logs for actual PASS/FAIL.
+| Recurso | Estado | Evidência |
+| --- | --- | --- |
+| GitHub Pages | PASS | Pipeline de build, Chromium desktop/mobile, deploy e smoke test HTTP |
+| API Node + autenticação | PASS em CI | Testes HTTP de login, autorização, logout e CORS |
+| Fila local | PASS em CI | Testes de recuperação, reintentos e prevenção de duplicatas; JSON local single-process |
+| WooCommerce REST com HTTPS | PASS em CI descartável | Produto rascunho criado por API autenticada e relido; MariaDB real |
+| MCP stdio | PASS em teste de protocolo | Cliente SDK fez handshake, listou ferramentas e verificou recusas |
+| WordPress persistente público | BLOQUEADO | Nenhuma hospedagem + banco permanente configurados |
+| API HTTPS pública persistente | BLOQUEADO | Blueprint versionado, serviço externo não criado |
+| Painel LIVE com dados reais externos | BLOQUEADO | Depende de API pública, login e WooCommerce autorizado |
+| OpenClaw com agentes executando | DESCONHECIDO / não verificado | Gateway local não acessível por esta conexão |
+| DSers / AliExpress | BLOQUEADO | Falta conta autorizada vinculada ao WooCommerce, domínio e webhooks |
+| Compras, pagamentos e checkout | NÃO IMPLEMENTADOS | Nenhuma ação financeira autorizada ou executada |
 
-## Not yet verified or implemented
-- WordPress installed and WooCommerce products persisted successfully in an ephemeral GitHub Actions MariaDB/WordPress sandbox (PR #3). WordPress on the user's Mac or production hosting is still unverified.
-- WooCommerce authentication credentials, real external HTTP API operations and product/order operations on a persistent deployment are not yet connected.
-- A working MCP protocol server has now been implemented as `src/mcp-server.mjs`. The official SDK client/server stdio handshake, tools/list and safe disconnected tool calls passed CI. Live WooCommerce-authenticated MCP calls remain unverified.
-- DSers and AliExpress account authorizations and order synchronization.
-- Automated software-development tasks through OpenClaw/Harness.
-- Production deployment, security hardening, and end-to-end commerce checkout.
+O teste WooCommerce HTTPS é real, mas roda dentro de GitHub Actions e destrói contêineres e volumes no final. Não representa uma loja persistente.
 
-This local supervisor intentionally supports only `ping` and `health-check`. No fake products, orders, supplier inventory, tracking or agent counts are returned.
+O Blueprint Render Free em `render.yaml` intencionalmente define `DROPERAGENT_DISABLE_WORKER=1`, impedindo tarefas supostamente persistentes em sistema de arquivos efêmero. Nenhum serviço UGO foi alterado.
 
-## Local operation
-From the cloned repository, using Node.js 22:
-1. Install dependencies with `npm install`.
-2. Configure a long random `DROPERAGENT_API_TOKEN` in a local `.env` (never commit it).
-3. Run `npm test`.
-4. Run `npm start` or `bash start-worker.sh`.
-5. POST to `http://127.0.0.1:3000/task` with `Authorization: Bearer <token>`, JSON `{"type":"ping"}`.
-6. Read `/tasks` with the same bearer token; results persist in `db/tasks.json` across restarts.
+## Próximos bloqueios técnicos
 
-The local on-disk queue is single-process only and is not a distributed or SQLite transactional queue. Do not run two API/worker instances against the same store.
+1. Autorizar e disponibilizar hospedagem persistente WordPress + MariaDB/backup, acessível por HTTPS.
+2. Configurar o backend independente com senha de administrador como segredo e chaves WooCommerce em ambiente privado.
+3. Verificar E2E com IDs reais do host persistente; só então publicar `DROPERAGENT_API_URL` e `DROPERAGENT_LIVE_READONLY=true`.
+4. Autorizar a conexão oficial de DSers à loja e ao AliExpress; os passos documentados por DSers incluem verificação do domínio, autorização REST e webhooks.
+5. Conectar e verificar OpenClaw no Mac mediante seu mecanismo local suportado e scheduler autorizado.
 
-## Next P0
-Verify the additional WooCommerce REST controller integration check in PR #3. Configure a genuine persistent WordPress test store, create limited-permission WooCommerce test API credentials, and test the adapter/MCP against it. Then connect the trusted local OpenClaw host using its supported MCP configuration. No external supplier payments or production use.
+Veja `docs/REAL-DEPLOYMENT-HANDOFF.md` para o procedimento de implantação e seus limites. Não confundir resultados CI com produção.
