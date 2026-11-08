@@ -37,7 +37,10 @@ jobs:
         run: npm run build
       - name: Install Chromium browser
         run: npx playwright install --with-deps chromium
-      - name: Test desktop and mobile UI in browser
+      - name: Test desktop, mobile and LIVE login UI in browser
+        env:
+          VITE_DROPERAGENT_API_URL: https://api.droperagent.test
+          VITE_ENABLE_LIVE_READONLY: 'true'
         run: npm run test:e2e
       - name: Upload browser captures and traces
         if: always()
