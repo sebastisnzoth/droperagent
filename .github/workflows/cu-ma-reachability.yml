@@ -1,0 +1,34 @@
+name: Check public cu.ma WordPress reachability
+on:
+  push:
+    branches: [test/cu-ma-reachability]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check DNS and WordPress routes without any credentials
+        shell: bash
+        run: |
+          set -u
+          echo '=== DNS ==='
+          getent ahostsv4 droperagent.cu.ma || true
+          echo '=== HTTPS ==='
+          for path in / /wp-json/ /wp-json/wc/v3/; do
+            echo "=== PATH: $path ==="
+            curl --location --silent --show-error --max-time 12 --connect-timeout 5 -o /tmp/response -w 'HTTP:%{http_code} TYPE:%{content_type} REDIRECT:%{redirect_url} IP:%{remote_ip}\n' "https://droperagent.cu.ma$path" || true
+            python3 - <<'PY'
+          import json
+          try:
+              with open('/tmp/response','rb') as f:
+                  obj=json.loads(f.read(256000))
+              if isinstance(obj,dict):
+                  print('JSON_KEYS:',','.join(list(obj.keys())[:10]))
+                  print('HAS_WC_V3:', 'wc/v3' in obj.get('namespaces',[]))
+              else:print('JSON_TYPE:',type(obj).__name__)
+          except Exception:print('JSON_NOT_CONFIRMED')
+          PY
+          done
