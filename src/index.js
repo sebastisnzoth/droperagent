@@ -9,31 +9,52 @@ const express = require('express');
 const crypto = require('node:crypto');
 const { TaskEngine } = require('./task-engine');
 const { WooCommerceClient } = require('./woocommerce-client');
+const { createAdminAuth } = require('./live-auth');
 
 const app = express();
+if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(express.json({ limit: '32kb' }));
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 3000);
 const apiToken = process.env.DROPERAGENT_API_TOKEN || '';
+const admin = createAdminAuth({ apiToken });
+const allowedOrigin = process.env.DROPERAGENT_WEB_ORIGIN || 'https://sebastisnzoth.github.io';
 
-if (!apiToken && host !== '127.0.0.1' && host !== '::1') {
-  throw new Error('DROPERAGENT_API_TOKEN required when binding beyond loopback');
+if (!apiToken && !admin.enabled && host !== '127.0.0.1' && host !== '::1') {
+  throw new Error('Admin authentication required for public API');
 }
+if (process.env.NODE_ENV === 'production' && host !== '127.0.0.1' && host !== '::1' && !admin.enabled) {
+  throw new Error('DROPERAGENT_ADMIN_PASSWORD must be set for public deployment');
+}
+app.disable('etag');
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Content-Type-Options', 'nosniff');
+  const origin = req.get('origin');
+  if (origin && origin !== allowedOrigin) return res.status(403).json({ error: 'origin_not_allowed' });
+  if (origin === allowedOrigin) {
+    res.set('Access-Control-Allow-Origin', allowedOrigin);
+    res.set('Vary', 'Origin');
+    res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
 function authorize(req, res, next) {
-  if (!apiToken) {
-    if (req.method === 'GET') return next();
-    return res.status(503).json({ error: 'not_configured', detail: 'Set DROPERAGENT_API_TOKEN to enable writes' });
-  }
-  const actual = req.get('authorization') || '';
-  const expected = 'Bearer ' + apiToken;
-  const a = Buffer.from(actual);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-    return res.status(401).json({ error: 'unauthorized' });
-  }
+  if (!admin.verify(req.get('authorization') || '')) return res.status(401).json({ error: 'unauthorized' });
   next();
 }
+app.post('/auth/login', (req, res) => {
+  if (process.env.NODE_ENV === 'production' && !req.secure && process.env.TRUST_PROXY !== '1') {
+    return res.status(403).json({ error: 'https_required' });
+  }
+  const outcome = admin.login(req.body?.password, req.ip);
+  res.status(outcome.status).json(outcome.status === 200 ? { token: outcome.token, expiresIn: outcome.expiresIn } : { error: outcome.error });
+});
+app.get('/auth/me', authorize, (_req, res) => res.json({ authenticated: true, role: 'admin' }));
+app.post('/auth/logout', authorize, (req, res) => { admin.logout(req.get('authorization')); res.json({ success: true }); });
 
 const handlers = {
   ping: async () => ({ pong: true, time: new Date().toISOString() }),
@@ -58,7 +79,6 @@ if (wc) {
 const engine = new TaskEngine({ handlers });
 
 function requireWoo(req, res, next) {
-  if (!apiToken) return res.status(503).json({ error: 'not_configured', detail: 'API token required for WooCommerce endpoints' });
   if (!wc) return res.status(503).json({ error: 'not_configured', detail: 'WooCommerce credentials not configured' });
   next();
 }
@@ -86,11 +106,11 @@ app.get('/api/woo/products', authorize, requireWoo, async (req, res) => {
     const products = await wc.listProducts({
       page: Number(req.query.page || 1), perPage: Number(req.query.per_page || 10), status: req.query.status
     });
-    res.json({ products, source: 'woocommerce' });
+    res.json({ products: products.map(p => ({ id: p.id, name: p.name, status: p.status, price: p.price, stock_quantity: p.stock_quantity, categories: (p.categories || []).map(c => ({ name: c.name })) })), source: 'woocommerce' });
   } catch (error) { handleWooError(error, res); }
 });
 app.get('/api/woo/products/:id', authorize, requireWoo, async (req, res) => {
-  try { res.json(await wc.getProduct(Number(req.params.id))); }
+  try { const p = await wc.getProduct(Number(req.params.id)); res.json({ id: p.id, name: p.name, status: p.status, price: p.price, stock_quantity: p.stock_quantity, description: p.description }); }
   catch (error) { handleWooError(error, res); }
 });
 app.post('/api/woo/products/drafts', authorize, requireWoo, async (req, res) => {
@@ -102,9 +122,10 @@ app.post('/api/woo/products/drafts', authorize, requireWoo, async (req, res) => 
 app.get('/api/woo/orders', authorize, requireWoo, async (req, res) => {
   try {
     const orders = await wc.listOrders({ page: Number(req.query.page || 1), perPage: Number(req.query.per_page || 10) });
-    res.json({ orders, source: 'woocommerce' });
+    res.json({ orders: orders.map(o => ({ id: o.id, status: o.status, total: o.total, currency: o.currency, date_created: o.date_created, items: (o.line_items || []).map(i => ({ name: i.name, quantity: i.quantity })) })), source: 'woocommerce' });
   } catch (error) { handleWooError(error, res); }
 });
+app.get('/api/agents', authorize, (_req, res) => res.json({ agents: [], source: 'unconfigured', note: 'No OpenClaw telemetry connected' }));
 app.get('/control', authorize, (_req, res) => res.json({
   supervisor: engine.stats(),
   integrations: { wordpress: 'NOT_VERIFIED', woocommerce: wcConfigured ? 'CONFIGURED_NOT_VERIFIED' : 'NOT_CONFIGURED', dsers: 'NOT_CONFIGURED', mcp: 'NOT_IMPLEMENTED' },
