@@ -41,6 +41,6 @@ test('integration status reflects verified WooCommerce and never invents DSers c
   await page.getByRole('button',{name:'Integrações'}).click();
   await expect(page.getByText('CONECTADO · API REST')).toHaveCount(2);
   await expect(page.getByText('NÃO VERIFICADO PELA API')).toHaveCount(4);
-  await page.getByRole('button',{name:'Diagnóstico'}).click();
+  await page.getByRole('button',{name:'Diagnóstico',exact:true}).click();
   await expect(page.getByText('API REST CONECTADA')).toBeVisible();
 });
