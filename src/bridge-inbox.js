@@ -16,7 +16,7 @@ function validProduct(p) {
 }
 function verifySignature({ secret, timestamp, nonce, signature, body, now = Date.now(), seen }) {
   if (!secret || secret.length < 32) return 'bridge_not_configured';
-  if (!/^\\d{13}$/.test(String(timestamp || '')) || Math.abs(now - Number(timestamp)) > MAX_SKEW_MS) return 'invalid_timestamp';
+  if (!/^[0-9]{13}$/.test(String(timestamp || '')) || Math.abs(now - Number(timestamp)) > MAX_SKEW_MS) return 'invalid_timestamp';
   if (!/^[a-f0-9]{32}$/.test(nonce || '')) return 'invalid_nonce';
   if (!/^sha256=[a-f0-9]{64}$/.test(signature || '')) return 'invalid_signature';
   const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(timestamp + '.' + nonce + '.' + body).digest('hex');
