@@ -24,8 +24,8 @@ services:
       WORDPRESS_DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
       WORDPRESS_DB_NAME: droperagent
       WORDPRESS_CONFIG_EXTRA: |
-        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
-          $_SERVER['HTTPS'] = 'on';
+        if (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && $$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+          $$_SERVER['HTTPS'] = 'on';
         }
     volumes:
       - wp_data:/var/www/html
