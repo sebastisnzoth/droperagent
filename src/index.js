@@ -205,6 +205,15 @@ function start() {
     console.log('DroperAgent supervisor listening at http://' + host + ':' + port);
     if (workerEnabled) engine.start();
     else console.log('Worker disabled: no durable storage configured');
+    // Boot-time read-only audit; logs only gateway IDs, never credentials or customer data.
+    if (wc) wc.listPaymentGateways().then(gateways => {
+      const enabled = Array.isArray(gateways)
+        ? gateways.filter(g => g && g.enabled && typeof g.id === 'string').map(g => g.id.slice(0,50))
+        : [];
+      console.log('WooCommerce enabled payment gateway IDs:', JSON.stringify(enabled));
+      console.log('WooCommerce customer charge/settlement: NOT_VERIFIED');
+    }).catch(() => console.log('WooCommerce payment gateway inspection: UNAVAILABLE'));
+
   });
   return server;
 }
