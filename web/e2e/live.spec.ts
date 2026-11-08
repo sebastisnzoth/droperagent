@@ -55,3 +55,18 @@ test('unverified API must never unlock LIVE just from build-time URL', async ({p
   await expect(page.getByRole('button',{name:'Modo LIVE'})).toBeDisabled();
   await expect(page.getByText('AMBIENTE DEMO')).toBeVisible();
 });
+
+test('backend outage keeps LIVE locked until manual retry verifies service identity', async ({page}) => {
+  let healthy=false;
+  await page.route('https://api.droperagent.test/health', route=>route.fulfill({
+    status:healthy?200:503,
+    headers:{'access-control-allow-origin':'*','content-type':'application/json'},
+    body:JSON.stringify(healthy?{status:'healthy',service:'droperagent-api'}:{error:'unavailable'})
+  }));
+  await page.goto('./');
+  await page.getByRole('button',{name:'Explorar painel'}).click();
+  await expect(page.getByRole('button',{name:'Modo LIVE'})).toBeDisabled();
+  healthy=true;
+  await page.getByRole('button',{name:'Atualizar status'}).click();
+  await expect(page.getByRole('button',{name:'Modo LIVE'})).toBeEnabled();
+});
