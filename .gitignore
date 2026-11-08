@@ -6,3 +6,7 @@ db/
 .DS_Store
 *.zip
 *.tmp
+
+# Disposable CI TLS certs and WooCommerce test-only credentials
+.ci/certs/
+.ci/woo-keys
