@@ -110,8 +110,22 @@ function requireWoo(req, res, next) {
   next();
 }
 function handleWooError(error, res) {
-  const status = Number.isInteger(error.status) && error.status >= 400 && error.status < 500 ? error.status : 502;
-  res.status(status).json({ error: 'woocommerce_error', detail: error.message });
+  // Provider error.message can contain remote HTML, credentials or customer data.
+  // Preserve only a safe HTTP classification; never reflect provider text to clients.
+  const status = Number.isInteger(error?.status) && [400, 401, 403, 404, 408, 409, 422, 429].includes(error.status)
+    ? error.status : 502;
+  const details = {
+    400: 'WooCommerce request rejected',
+    401: 'WooCommerce authentication rejected',
+    403: 'WooCommerce permission denied',
+    404: 'WooCommerce resource not found',
+    408: 'WooCommerce request timed out',
+    409: 'WooCommerce conflict',
+    422: 'WooCommerce validation failed',
+    429: 'WooCommerce rate limited',
+    502: 'WooCommerce temporarily unavailable'
+  };
+  res.status(status).json({ error: 'woocommerce_error', detail: details[status] });
 }
 
 app.get('/health', (_req, res) => res.json({

@@ -27,5 +27,7 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Authenticated HTTP API security integration test
         run: node --test tests/http-auth.test.mjs
+      - name: Ensure WooCommerce upstream errors never leak credentials
+        run: node --test tests/woo-error-redaction.test.mjs
       - name: Real MCP client-server protocol test
         run: node --test tests/mcp.test.mjs
