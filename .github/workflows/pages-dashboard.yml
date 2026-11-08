@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: web
@@ -35,6 +35,19 @@ jobs:
         run: npm test
       - name: Typecheck and build
         run: npm run build
+      - name: Install Chromium browser
+        run: npx playwright install --with-deps chromium
+      - name: Test desktop and mobile UI in browser
+        run: npm run test:e2e
+      - name: Upload browser captures and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: droperagent-browser-captures
+          path: |
+            web/screenshots/
+            web/test-results/
+          if-no-files-found: ignore
       - name: Verify output and reject exposed credentials
         run: |
           test -f dist/index.html
@@ -59,3 +72,27 @@ jobs:
       - id: deployment
         name: Deploy Pages
         uses: actions/deploy-pages@v4
+  verify-public:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify public HTML and compiled assets respond HTTP 200
+        run: |
+          URL='https://sebastisnzoth.github.io/droperagent/'
+          ready=0
+          for attempt in $(seq 1 24); do
+            if curl --fail --location --silent --show-error --max-time 10 "$URL" -o /tmp/droperagent-page.html; then
+              ready=1
+              break
+            fi
+            sleep 10
+          done
+          test "$ready" -eq 1
+          grep -q 'DroperAgent' /tmp/droperagent-page.html
+          grep -q '/droperagent/assets/' /tmp/droperagent-page.html
+          for asset in $(grep -oE '/droperagent/assets/[^" ]+\\.(js|css)' /tmp/droperagent-page.html | sort -u); do
+            curl --fail --location --silent --show-error --max-time 15 "https://sebastisnzoth.github.io$asset" -o /dev/null
+            echo "Verified: $asset"
+          done
+          echo "GitHub Pages HTTP and asset checks passed at $URL"
