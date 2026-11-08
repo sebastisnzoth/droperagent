@@ -14,7 +14,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "=== DROPERAGENT WOO CONNECTION STATUS ==="
-          for i in $(seq 1 8); do
+          for i in $(seq 1 14); do
             code=$(curl -sS --max-time 20 -o /tmp/woo-probe.json -w '%{http_code}' 'https://droperagent-api.onrender.com/health/woocommerce' || true)
             if [ "$code" = 200 ]; then
               python3 - <<'PY'
@@ -27,7 +27,7 @@ jobs:
               exit 0
             fi
             echo "HTTP $code; retrying"
-            sleep 8
+            sleep 10
           done
           echo 'No HTTP 200 from live endpoint'
           exit 1
