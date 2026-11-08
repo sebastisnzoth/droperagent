@@ -1,0 +1,56 @@
+name: Probe existing WordPress on Wasmer
+on:
+  push:
+    branches: [test/wasmer-wordpress-readiness]
+    paths:
+      - '.github/workflows/wasmer-wordpress-probe.yml'
+      - 'docs/WASMER-WORDPRESS.md'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect public DNS, HTTPS, WordPress REST, and WooCommerce route
+        shell: bash
+        env:
+          TARGET: https://wordpress-2c113.wasmer.app
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import urllib.request, urllib.error, urllib.parse, json, socket, ssl, os
+          host='wordpress-2c113.wasmer.app'
+          base='https://'+host
+          try:
+              addrs=sorted({str(entry[4][0]) for entry in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+              print('DNS_RESOLVED: YES (address count: %d)' % len(addrs))
+          except Exception as exc:
+              print('DNS_RESOLVED: NO (%s)' % type(exc).__name__)
+          for path in ('/','/wp-json/','/?rest_route=/','/wp-json/wc/v3/products','/wp-json/wc/v3/'):
+              req=urllib.request.Request(base+path,headers={'User-Agent':'DroperAgent-readiness/1.0','Accept':'application/json,text/html;q=0.7'})
+              try:
+                  with urllib.request.urlopen(req,timeout=12,context=ssl.create_default_context()) as res:
+                      code=res.status
+                      data=res.read(64000)
+                      mime=res.headers.get('Content-Type','')
+                      final=res.geturl()
+              except urllib.error.HTTPError as err:
+                  code=err.code;data=err.read(64000);mime=err.headers.get('Content-Type','');final=err.geturl()
+              except Exception as exc:
+                  print('PROBE %s NETWORK_ERROR %s' % (path,type(exc).__name__))
+                  continue
+              try:
+                  payload=json.loads(data.decode('utf-8','replace'))
+                  if isinstance(payload,dict):
+                      namespaces=payload.get('namespaces',[])
+                      routes=payload.get('routes',{})
+                      error=payload.get('code','')
+                      root_name=payload.get('name','') if path=='/wp-json/' else ''
+                      print('PROBE %s HTTP_%s content=%s wordpress_name=%s wc_namespace=%s error_code=%s routes=%s' % (path,code,mime.split(';')[0],str(root_name)[:70], ('wc/v3' in namespaces) if isinstance(namespaces,list) else 'unknown',str(error)[:70],len(routes) if isinstance(routes,dict) else 'n/a'))
+                  else:
+                      print('PROBE %s HTTP_%s content=%s json_non_object' % (path,code,mime.split(';')[0]))
+              except Exception:
+                  print('PROBE %s HTTP_%s content=%s body_not_json redirect=%s' % (path,code,mime.split(';')[0],urllib.parse.urlsplit(final).hostname))
+          PY
