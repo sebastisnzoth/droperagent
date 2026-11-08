@@ -64,6 +64,6 @@ function authorizeOperation(op, policy = {}) {
   if (op.action === 'publish_approved_social_post' || op.action === 'publish_approved_product') {
     if (op.licensedAssets !== true || op.claimsVerified !== true) return deny('CONTENT_NOT_VERIFIED');
   }
-  return {allowed:true,reason:'POLICY_PASSED_NOT_EXECUTED'};
+  // HARD STOP: no money movement, provider approval or payment-destination change until a\n  // separate authenticated, cryptographically scoped authorization service is built.\n  // A model-supplied signatureVerified:true or evidence booleans cannot authorize money.\n  if (HIGH_RISK.has(op.action)) return deny('TRUSTED_FINANCIAL_EXECUTOR_NOT_IMPLEMENTED');\n  return {allowed:true,reason:'POLICY_PASSED_NOT_EXECUTED'};
 }
 module.exports={authorizeOperation};
