@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DROPERAGENT — Conexões API
  * Description: Painel administrativo para credenciais criptografadas de fornecedores, com teste de leitura CJ.
- * Version: 0.4.0
+ * Version: 0.5.0
  * Requires PHP: 8.1
  * Author: DROPERAGENT
  * License: GPL-2.0-or-later
@@ -462,6 +462,247 @@ final class DroperAgent_API_Connections {
         <?php
     }
 
+
+    /**
+     * Manual quotation workbook. Strictly an ADMIN-ENTERED estimate, not independent
+     * verification of supplier, shipping, import tax, customs or payment settlement.
+     * Stores isolated WordPress options, NEVER changes Woo product/stock/order/price.
+     */
+    static function cost_amount_cents($raw) {
+        if (!is_string($raw)) return false;
+        $val = str_replace(',', '.', trim($raw));
+        if (!preg_match('/^([0-9]{1,8})(?:\.([0-9]{1,2}))?$/D', $val, $m)) return false;
+        $whole = (int) $m[1];
+        $fraction = isset($m[2]) ? (int) str_pad($m[2], 2, '0') : 0;
+        return $whole * 100 + $fraction;
+    }
+    static function cost_option_name($variation_id) {
+        if (!is_int($variation_id) || $variation_id < 1) return false;
+        return 'droper_quote_brl_v1_' . $variation_id;
+    }
+    static function cost_quote_read($variation_id, $sku) {
+        $name = self::cost_option_name($variation_id);
+        if (!$name) return false;
+        $record = get_option($name, false);
+        if (!is_array($record) || (int) ($record['schema'] ?? 0) !== 1) return false;
+        if (!is_string($sku) || $sku === '' ||
+            !hash_equals((string) ($record['sku_hash'] ?? ''), hash('sha256', $sku))) {
+            return false; // SKU changed: quote is not eligible for comparison.
+        }
+        return $record;
+    }
+    static function cost_evidence_report($record, $store_price) {
+        $price = self::cost_amount_cents((string) $store_price);
+        if (!is_array($record) || $price === false) return false;
+        $parts = array('supplier', 'shipping', 'import_tax', 'payment_fee', 'other');
+        $total = 0;
+        foreach ($parts as $part) {
+            if (!isset($record[$part]) || !is_int($record[$part]) ||
+                $record[$part] < 0 || $record[$part] > 9999999999) return false;
+            $total += $record[$part];
+        }
+        $reference_at = (int) ($record['timestamp'] ?? 0);
+        $fresh = ($reference_at > 0 && $reference_at <= time() &&
+                  $reference_at >= time() - 14 * DAY_IN_SECONDS);
+        $price_changed = (int) ($record['price_at_capture'] ?? -1) !== $price;
+        $margin = $price - $total;
+        $percent = $price > 0 ? round(100 * $margin / $price, 2) : null;
+        return array(
+            'cost_total_cents' => $total, 'store_price_cents' => $price,
+            'gross_margin_cents' => $margin, 'gross_margin_percent' => $percent,
+            'stale' => !$fresh, 'price_changed' => $price_changed,
+            'supplier_verified' => false, 'shipping_verified' => false,
+            'taxes_verified' => false, 'sell_authorized' => false
+        );
+    }
+    static function cost_redirect($notice, $vid) {
+        $url = add_query_arg(array('page' => 'droperagent-api-connections',
+            'quote_vid' => $vid, 'da_notice' => $notice), admin_url('admin.php'));
+        wp_safe_redirect($url, 303);
+        exit;
+    }
+    static function cost_save() {
+        self::guard('cost_save');
+        $vid = isset($_POST['quote_vid']) ? absint($_POST['quote_vid']) : 0;
+        if (!$vid || !function_exists('wc_get_product')) self::cost_redirect('quote_invalid', $vid);
+        $variation = wc_get_product($vid);
+        if (!$variation || !$variation->is_type('variation') || $variation->get_status() !== 'publish')
+            self::cost_redirect('quote_invalid', $vid);
+        $sku = (string) $variation->get_sku('edit');
+        $price = self::cost_amount_cents((string) $variation->get_price('edit'));
+        if ($sku === '' || $price === false || $price < 1 || strlen($sku) > 200)
+            self::cost_redirect('quote_invalid', $vid);
+
+        $parts = array(
+            'supplier' => 'quote_supplier_brl',
+            'shipping' => 'quote_shipping_brl',
+            'import_tax' => 'quote_import_tax_brl',
+            'payment_fee' => 'quote_payment_fee_brl',
+            'other' => 'quote_other_brl'
+        );
+        $record = array('schema' => 1, 'sku_hash' => hash('sha256', $sku),
+            'price_at_capture' => $price);
+        foreach ($parts as $key => $field) {
+            $raw = isset($_POST[$field]) && is_string($_POST[$field])
+                ? trim(wp_unslash($_POST[$field])) : '';
+            $amount = self::cost_amount_cents($raw);
+            if ($amount === false) self::cost_redirect('quote_invalid', $vid);
+            $record[$key] = $amount;
+        }
+        $supplier_name = isset($_POST['quote_supplier_name']) && is_string($_POST['quote_supplier_name'])
+            ? trim(wp_unslash($_POST['quote_supplier_name'])) : '';
+        $method = isset($_POST['quote_shipping_method']) && is_string($_POST['quote_shipping_method'])
+            ? trim(wp_unslash($_POST['quote_shipping_method'])) : '';
+        $source_url = isset($_POST['quote_source_url']) && is_string($_POST['quote_source_url'])
+            ? trim(wp_unslash($_POST['quote_source_url'])) : '';
+        $cep = isset($_POST['quote_dest_cep']) && is_string($_POST['quote_dest_cep'])
+            ? preg_replace('/\D/', '', wp_unslash($_POST['quote_dest_cep'])) : '';
+        $date = isset($_POST['quote_date']) && is_string($_POST['quote_date'])
+            ? trim(wp_unslash($_POST['quote_date'])) : '';
+        $origin = isset($_POST['quote_origin']) && is_string($_POST['quote_origin'])
+            ? strtoupper(trim(wp_unslash($_POST['quote_origin']))) : '';
+        $date_parsed = preg_match('/^\d{4}-\d{2}-\d{2}$/D', $date)
+            ? DateTimeImmutable::createFromFormat('!Y-m-d', $date, new DateTimeZone('UTC')) : false;
+        $url_parts = wp_parse_url($source_url);
+        if (strlen($supplier_name) < 2 || strlen($supplier_name) > 120 ||
+            strlen($method) < 2 || strlen($method) > 120 ||
+            strlen($source_url) > 500 ||
+            !is_array($url_parts) || strtolower($url_parts['scheme'] ?? '') !== 'https' ||
+            empty($url_parts['host']) || isset($url_parts['user']) || isset($url_parts['pass']) ||
+            (isset($url_parts['query']) && preg_match('/(?:key|token|secret|password|auth)=/i', $url_parts['query'])) ||
+            !preg_match('/^\d{8}$/D', $cep) ||
+            !preg_match('/^[A-Z]{2}$/D', $origin) ||
+            !$date_parsed || $date_parsed->format('Y-m-d') !== $date ||
+            $date > wp_date('Y-m-d') || $date < wp_date('Y-m-d', time() - 30 * DAY_IN_SECONDS)) {
+            self::cost_redirect('quote_invalid', $vid);
+        }
+        $record['supplier_name'] = sanitize_text_field($supplier_name);
+        $record['shipping_method'] = sanitize_text_field($method);
+        $record['source_url'] = esc_url_raw($source_url, array('https'));
+        $record['destination_cep'] = $cep; // Quote applies ONLY to this BR destination.
+        $record['origin_country'] = $origin;
+        $record['quoted_date'] = $date;
+        $record['timestamp'] = time();
+        $record['recorded_by'] = get_current_user_id();
+        $record['evidence_status'] = 'operator_entry_not_independently_verified';
+        $name = self::cost_option_name($vid);
+        update_option($name, $record, false); // Don't autoload; don't mutate product.
+        self::cost_redirect('quote_saved', $vid);
+    }
+    static function cost_remove() {
+        self::guard('cost_remove');
+        $vid = isset($_POST['quote_vid']) ? absint($_POST['quote_vid']) : 0;
+        $name = self::cost_option_name($vid);
+        if (!$name) self::cost_redirect('quote_invalid', $vid);
+        delete_option($name);
+        self::cost_redirect('quote_removed', $vid);
+    }
+    static function cost_evidence_card() {
+        if (!current_user_can('manage_options')) return;
+        $audit = self::commerce_readiness_snapshot();
+        $selected = isset($_GET['quote_vid']) ? absint($_GET['quote_vid']) : 0;
+        $selected_row = null;
+        foreach ($audit['rows'] as $row) {
+            if ($selected && $row['variation_id'] === $selected) $selected_row = $row;
+        }
+        ?>
+        <section class="da-card" style="grid-column:1/-1">
+            <h2>Custos por variante — cotações BRL e margem estimada</h2>
+            <p><strong>Sem fornecedor autorizado:</strong> estes valores só podem vir de uma cotação que você obteve diretamente.
+            Registrar uma estimativa não comprova estoque, frete para outros CEP, tributos ou liberação de pagamento.
+            Nenhum lançamento habilita vendas nem altera as opções do checkout.</p>
+            <div style="overflow-x:auto;max-width:100%">
+              <table class="widefat striped">
+                <thead><tr><th>SKU</th><th>Preço loja BRL</th><th>Custos declarados</th><th>Margem estimada</th><th>Validar</th></tr></thead>
+                <tbody>
+                  <?php foreach ($audit['rows'] as $row) :
+                    $quote = self::cost_quote_read($row['variation_id'], $row['sku']);
+                    $calc = $quote ? self::cost_evidence_report($quote, $row['price']) : false;
+                    $flag = !$calc ? 'Sem cotação' :
+                        ($calc['price_changed'] ? 'Preço alterado — revisar' :
+                        ($calc['stale'] ? 'Cotação vencida — revisar' : 'Estimativa registrada — não verificada'));
+                  ?>
+                  <tr>
+                    <td><code><?php echo esc_html($row['sku']); ?></code></td>
+                    <td><?php echo esc_html($row['price']); ?></td>
+                    <td><?php echo $calc ? esc_html(number_format($calc['cost_total_cents'] / 100, 2, ',', '.')) : '—'; ?></td>
+                    <td><?php
+                        if (!$calc) echo '—';
+                        else echo esc_html(number_format($calc['gross_margin_cents'] / 100, 2, ',', '.') . ' BRL / ' . $calc['gross_margin_percent'] . '%');
+                    ?></td>
+                    <td><span><?php echo esc_html($flag); ?></span>
+                       <a href="<?php echo esc_url(add_query_arg(array('page'=>'droperagent-api-connections',
+                         'quote_vid'=>$row['variation_id']),admin_url('admin.php'))); ?>">Editar cotação</a></td>
+                  </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+            <?php if ($selected_row) :
+                $existing = self::cost_quote_read($selected_row['variation_id'], $selected_row['sku']);
+                $amount_fields = array('supplier' => 'Custo do produto no fornecedor',
+                  'shipping' => 'Frete até o CEP informado', 'import_tax' => 'Impostos/importação',
+                  'payment_fee' => 'Taxas de pagamento/conversão',
+                  'other' => 'Outros custos');
+            ?>
+            <hr><h3>Cotação — <?php echo esc_html($selected_row['sku']); ?></h3>
+            <p><strong>Preço de venda atual (BRL):</strong> <?php echo esc_html($selected_row['price']); ?>
+              — informar despesas também em <strong>BRL</strong>. Não colocar preço em USD sem taxa de câmbio documentada.
+              CEP é uma amostra; não representa frete nacional.</p>
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" autocomplete="off">
+              <input type="hidden" name="action" value="droper_api_cost_save">
+              <input type="hidden" name="quote_vid" value="<?php echo esc_attr($selected_row['variation_id']); ?>">
+              <?php wp_nonce_field('droper_api_cost_save'); ?>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;max-width:950px">
+                <?php foreach ($amount_fields as $field=>$label) : ?>
+                  <label><strong><?php echo esc_html($label); ?> (BRL)</strong>
+                  <input style="width:100%" required inputmode="decimal" type="text"
+                    name="quote_<?php echo esc_attr($field === 'supplier' ? 'supplier_brl' :
+                      ($field === 'shipping' ? 'shipping_brl' :
+                      ($field === 'import_tax' ? 'import_tax_brl' :
+                      ($field === 'payment_fee' ? 'payment_fee_brl' : 'other_brl')))); ?>"
+                    value="<?php echo $existing ? esc_attr(number_format($existing[$field] / 100, 2, '.', '')) : ''; ?>"
+                    placeholder="0,00"></label>
+                <?php endforeach; ?>
+                <label><strong>Fornecedor responsável</strong>
+                <input required type="text" style="width:100%" name="quote_supplier_name" maxlength="120"
+                    value="<?php echo $existing ? esc_attr($existing['supplier_name']) : ''; ?>"></label>
+                <label><strong>Método/transportadora</strong>
+                <input required type="text" style="width:100%" name="quote_shipping_method" maxlength="120"
+                    value="<?php echo $existing ? esc_attr($existing['shipping_method']) : ''; ?>"></label>
+                <label><strong>CEP de destino no Brasil</strong>
+                <input required type="text" style="width:100%" name="quote_dest_cep" pattern="[0-9]{8}" maxlength="8"
+                    value="<?php echo $existing ? esc_attr($existing['destination_cep']) : ''; ?>"></label>
+                <label><strong>País de origem (ISO-2)</strong>
+                <input required type="text" style="width:100%" name="quote_origin" maxlength="2" pattern="[A-Za-z]{2}"
+                    value="<?php echo $existing ? esc_attr($existing['origin_country']) : 'CN'; ?>"></label>
+                <label><strong>Data da cotação</strong>
+                <input required type="date" style="width:100%" name="quote_date"
+                    max="<?php echo esc_attr(wp_date('Y-m-d')); ?>"
+                    value="<?php echo $existing ? esc_attr($existing['quoted_date']) : esc_attr(wp_date('Y-m-d')); ?>"></label>
+              </div>
+              <p><label><strong>Link HTTPS para cotação/fonte — acesso administrativo</strong><br>
+                <input style="width:100%;max-width:800px" required type="url" name="quote_source_url" maxlength="500"
+                    value="<?php echo $existing ? esc_attr($existing['source_url']) : ''; ?>"
+                    placeholder="https://fornecedor.example/cotacao"></label></p>
+              <p><button class="button button-primary" type="submit">Guardar cotação como NÃO verificada</button></p>
+            </form>
+            <?php if ($existing) : ?>
+              <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline">
+                <input type="hidden" name="action" value="droper_api_cost_remove">
+                <input type="hidden" name="quote_vid" value="<?php echo esc_attr($selected_row['variation_id']); ?>">
+                <?php wp_nonce_field('droper_api_cost_remove'); ?>
+                <button class="button" type="submit">Excluir somente esta cotação</button>
+              </form>
+            <?php endif; ?>
+            <?php endif; ?>
+            <p><strong>Bloqueio comercial:</strong> não existem cotações certificadas, estoque do fornecedor auditado,
+               políticas de entrega e impostos/ANATEL validados. A margem acima é apenas uma estimativa.
+               Nenhuma taxa de frete é enviada para o checkout.</p>
+        </section>
+        <?php
+    }
+
     static function menu() {
         if (class_exists('WooCommerce')) {
             add_submenu_page('woocommerce', 'DROPERAGENT | APIs', 'DROPERAGENT APIs',
@@ -500,6 +741,9 @@ final class DroperAgent_API_Connections {
             'bg_removed' => 'Credenciais Banggood removidas, sem alterar CJ ou AliExpress.',
             'bg_unchanged' => 'Nenhuma credencial Banggood alterada.',
             'bg_invalid' => 'Informe um App ID e um App Secret Banggood válidos, sempre juntos.',
+            'quote_saved' => 'Cotação salva apenas como estimativa manual. Nenhuma venda, tarifa, pedido ou pagamento foi ativado.',
+            'quote_removed' => 'Cotação removida. Nenhum produto ou preço foi alterado.',
+            'quote_invalid' => 'Cotação inválida. Confira a variante, valores BRL, CEP, data e link HTTPS.',
         );
         $notice = isset($_GET['da_notice']) ? sanitize_key(wp_unslash($_GET['da_notice'])) : '';
         $has_key = (bool) get_option(self::PREFIX . 'key', false);
@@ -613,6 +857,7 @@ final class DroperAgent_API_Connections {
             <?php endforeach; ?>
           </div>
           <?php self::commerce_readiness_card(); ?>
+          <?php self::cost_evidence_card(); ?>
           <p class="da-warning"><strong>Modo seguro:</strong> este painel não modifica produtos, SKUs, preços, pedidos ou pagamentos. Só o administrador pode guardar ou testar a chave CJ.</p>
         </div>
         <?php
@@ -628,6 +873,8 @@ final class DroperAgent_API_Connections {
         add_action('admin_post_droper_api_ae_callback', array(__CLASS__, 'ae_callback'));
         add_action('admin_post_droper_api_bg_save', array(__CLASS__, 'bg_save'));
         add_action('admin_post_droper_api_bg_remove', array(__CLASS__, 'bg_remove'));
+        add_action('admin_post_droper_api_cost_save', array(__CLASS__, 'cost_save'));
+        add_action('admin_post_droper_api_cost_remove', array(__CLASS__, 'cost_remove'));
 
     }
 }
