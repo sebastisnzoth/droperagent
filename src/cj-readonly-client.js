@@ -33,8 +33,14 @@ class CJReadOnlyClient {
     if (typeof fetchImpl !== 'function') throw new Error('fetch unavailable');
     this.accessToken=accessToken;
     this.fetchImpl=fetchImpl;
+    this.lastSentAt=0;
   }
   async call(kind,{params={},json}={}) {
+    // Best-effort local throttle: CJ Free tier documents <= 1 request/second.
+    // A future distributed deployment requires a centralized rate limiter.
+    const now=Date.now();
+    if(now-this.lastSentAt<1100)throw createUpstreamError(429);
+    this.lastSentAt=now;
     const path=PATHS[kind];
     if (!path) throw new Error('CJ operation not allowlisted');
     const method=kind==='freight'?'POST':'GET';
