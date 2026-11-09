@@ -61,6 +61,17 @@ for (const path of ['/auth/me','/api/woo/products','/api/woo/orders','/api/autom
     if (r.headers.get('cache-control') !== 'no-store') throw new Error('Missing no-store');
   });
 }
+// Newly deployed V4 evidence preflight must be protected even when the caller supplies no data.
+// Intentionally unauthenticated: never pass tokens, supplier records or real transactions to CI.
+await check('Requires login: supplier evidence preflight POST', async () => {
+  const r = await request(API + '/api/automation/supplier-evidence-preflight', {
+    method: 'POST',
+    headers: { Origin: ORIGIN, 'Content-Type': 'application/json' },
+    body: '{}'
+  });
+  requireStatus(r,401);
+  if (r.headers.get('cache-control') !== 'no-store') throw new Error('Missing no-store');
+});
 await check('Public Pages and JS bundle', async () => {
   const r = await request(SITE);
   requireStatus(r,200);
