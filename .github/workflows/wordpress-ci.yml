@@ -206,6 +206,49 @@ jobs:
             throw new Exception("Quote record was not deleted");
           echo "DROPERAGENT per-SKU manual cost evidence, negative margin, identity, expiry and redaction PASS\n";
           ' --allow-root
+      - name: Verify DROPERAGENT fail-closed checkout guard for physical products
+        run: |
+          docker compose cp wordpress/droperagent-api-connections/droperagent-checkout-gate.php wordpress:/var/www/html/wp-content/plugins/droperagent-api-connections/droperagent-checkout-gate.php
+          docker compose exec -T wordpress php -l /var/www/html/wp-content/plugins/droperagent-api-connections/droperagent-checkout-gate.php
+          docker compose run --rm --user 0 --entrypoint wp wpcli eval '
+          require_once WP_PLUGIN_DIR . "/droperagent-api-connections/droperagent-checkout-gate.php";
+          $class="DroperAgent_Checkout_Gate";
+          if (!class_exists($class) || $class::is_approved() !== false) {
+            throw new Exception("Shipping/commerce gate has been released without evidence");
+          }
+          if (!has_action("woocommerce_store_api_cart_errors", array($class,"store_api_errors")) ||
+              !has_action("woocommerce_check_cart_items", array($class,"classic_cart_validation")) ||
+              !has_action("woocommerce_after_checkout_validation", array($class,"classic_checkout_validation"))) {
+            throw new Exception("Checkout hook not registered for both Blocks and Classic");
+          }
+          $physical=new WC_Product_Simple(); $physical->set_virtual(false);
+          $virtual=new WC_Product_Simple(); $virtual->set_virtual(true);
+          $cartPhysical = new class($physical) {
+            private $product;
+            public function __construct($p) { $this->product=$p; }
+            public function get_cart() { return array(array("data"=>$this->product,"quantity"=>1)); }
+          };
+          $cartVirtual = new class($virtual) {
+            private $product;
+            public function __construct($p) { $this->product=$p; }
+            public function get_cart() { return array(array("data"=>$this->product,"quantity"=>1)); }
+          };
+          $errorsPhysical=new WP_Error();
+          $class::store_api_errors($errorsPhysical,$cartPhysical);
+          if (!$errorsPhysical->get_error_message("droper_shipping_pending") ||
+              $class::is_blocked($cartPhysical) !== true) {
+            throw new Exception("Store API would permit checkout without verified costs");
+          }
+          $errorsVirtual=new WP_Error();
+          $class::store_api_errors($errorsVirtual,$cartVirtual);
+          if ($errorsVirtual->has_errors() || $class::is_blocked($cartVirtual) !== false) {
+            throw new Exception("Gate must not interfere with virtual-only carts");
+          }
+          $errorsEmpty=new WP_Error();
+          $class::store_api_errors($errorsEmpty,null);
+          if ($errorsEmpty->has_errors()) throw new Exception("Null cart erroneously blocked");
+          echo "DROPERAGENT fail-closed Store API and Classic commerce gate PASS\n";
+          ' --allow-root
       - name: Create and reread a real WooCommerce product via database
         run: |
           docker compose run --rm --user 0 --entrypoint wp wpcli eval '
