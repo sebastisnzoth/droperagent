@@ -13,6 +13,7 @@ const { createAdminAuth } = require('./live-auth');
 const { attachBridge } = require('./bridge-inbox');
 const { reviewCommerce } = require('./commerce-review');
 const { evaluateMapping } = require('./supplier-mapping-guard');
+const { evaluateSupplierEvidence } = require('./supplier-evidence-audit');
 
 const app = express();
 if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
@@ -163,6 +164,19 @@ app.post('/api/automation/mapping-preflight', authorize, (req, res) => {
       purchaseAuthorized: false, ...audit });
   } catch (_) {
     res.status(400).json({ error: 'invalid_mapping_input', detail: 'Invalid mapping options' });
+  }
+});
+// Caller-supplied supplier quotes. No DSers request, store change, order or payment.
+app.post('/api/automation/supplier-evidence-preflight', authorize, (req, res) => {
+  try {
+    const audit = evaluateSupplierEvidence(req.body || {});
+    return res.json(audit);
+  } catch (_) {
+    // Never reflect raw supplier input or remote quote references to the client.
+    return res.status(400).json({
+      error: 'invalid_supplier_evidence_input',
+      detail: 'Provide bounded mapping, BRL/Brazil quotations and explicit margin policy'
+    });
   }
 });
 app.get('/api/woo/products', authorize, requireWoo, async (req, res) => {
