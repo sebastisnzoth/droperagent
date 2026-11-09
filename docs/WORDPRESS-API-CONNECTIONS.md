@@ -77,3 +77,38 @@ El uso completo requiere: inscripción en la Open Platform, aplicación Dropship
 - Acuerdo de uso: https://terms.alicdn.com/legal-agreement/terms/suit_bu1_aliexpress/suit_bu1_aliexpress202201220006_10755.html
 
 No usar enlaces ni códigos de autorización de ejemplos históricos. Ningún servicio pago ha sido contratado.
+
+## Banggood Open Platform — credenciales (v0.3.0)
+
+**Proveedor verificado mediante documentación pública oficial:** Banggood informa que su programa Dropshipping puede utilizar Banggood API sin cuota de membresía y que para unirse a Open Platform hay que registrarse, solicitar ser socio y obtener **App ID y App Secret**. La API permite, con permisos, información de productos, logística y órdenes; **no se habilita ninguna de esas operaciones en este incremento**.
+
+Fuentes de registro y capacidades:
+- https://www.banggood.com/index.php?com=dropshipcenter&t=Login — programa oficial de dropshipping.
+- https://api.banggood.com/index.php?com=account&t=login — Banggood Open Platform; página oficial confirma registro → aprobación de socio → App ID y App Secret, API sin cuota fija.
+- https://www.banggood.com/index.php?com=account&t=dropshipGuidance — usos de stock, precios, pedidos y seguimiento, solo después de habilitación.
+
+### Módulo operativo sin pedidos ni llamadas API
+
+- Pantalla privada **WooCommerce → DROPERAGENT APIs → Banggood** con dos campos ocultos: App ID y App Secret.
+- Se almacenan con la misma implementación Sodium Secretbox, nonce aleatorio y salts WordPress, pero en opciones **distintas** de CJ y AliExpress: \`droper_api_bg_app_id\` y \`droper_api_bg_app_secret\`, no-autoload. No salen al HTML una vez guardadas.
+- \`Guardar credenciais Banggood\`: admin \`manage_options\` + nonce, valida ambos campos y evita actualización parcial; cambio no habilita órdenes.
+- \`Remover credenciais Banggood\`: borra solamente secretos Banggood; no borra ni consulta CJ/AE.
+- Estado exclusivo: \`Não configurado\` / \`Credenciais salvas — aprovação e API não verificadas\`. **Jamás muestra “conectado” sin una prueba API real.**
+- El formulario indica acceso oficial a Banggood Open Platform y programa Dropshipping.
+- **No se implementa “Testar conexão”** porque no contamos con una definición autorizada actual de endpoint de autenticación para la modalidad de esta cuenta y es posible que se requiera validación de dominio/IP. No reutilizar ejemplos del API de afiliados como si fueran dropshipping.
+
+### Validación y seguridad
+
+CI WordPress aislado valida sintaxis PHP, autenticación administrativa, cifrado/descifrado, opciones no autoload, eliminación independiente, y conservación de CJ. No se llaman endpoints Banggood ni se crean pedidos. No se guardan credenciales reales en CI/repositorio o chat. El código se mantiene independiente del plugin Pix y del tema visual.
+
+**Limitación importante:** Banggood en wp-admin no sincroniza automáticamente sus credenciales con Render ni permite comparar los 12 SKUs de WooCommerce todavía. Antes del envío a Brasil, hay que comprobar proveedores equivalentes, tarifas reales, impuestos, fechas, posibles restricciones y permisos de API.
+
+### Para habilitar la conexión real
+
+1. Registrarse/ingresar a la cuenta oficial Banggood y solicitar participación en Dropship Program con la URL registrada \`https://droperagent.cu.ma/\`.
+2. Solicitar API/Open Platform y validar permisos del socio; verificar si requieren dominio, IP o aprobación adicional.
+3. Introducir App ID y App Secret **directamente en el panel privado WordPress**, no en chat.
+4. Presentar al proyecto el esquema de API/habilitaciones **sin mostrar secretos** para desarrollar un endpoint de **lectura** firmado y ejecutar prueba real; evitar acceder a pedidos/checkout o transferencias.
+5. Mantener bloqueadas compras automáticas hasta completar el circuito legal, financiero y de idempotencia.
+
+Estado: **BANGGOOD LIVE = NO VERIFICADO; provisionamiento de credenciales listo.**
