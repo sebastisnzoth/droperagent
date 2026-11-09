@@ -89,11 +89,77 @@ final class DroperAgent_Profit_Monitor {
         );
     }
 
+    /**
+     * Private WooCommerce product candidates: these five IDs/slugs were verified
+     * in DROPERAGENT production. ID and slug must agree to avoid mistaking a
+     * different product for an approved prospect after restore/import.
+     * Missing supplier evidence CANNOT be approved by any local Woo flag.
+     */
+    const CANDIDATE_DRAFTS = array(
+        99 => 'escova-manual-pelos-caes-gatos-candidato',
+        100 => 'escorredor-silicone-clipe-panelas-candidato',
+        101 => 'organizadores-mala-viagem-sete-pecas-candidato',
+        102 => 'organizador-adesivo-cabos-mesa-parede-kit-seis-candidato',
+        103 => 'organizador-talheres-gaveta-polipropileno-candidato'
+    );
+    static function candidate_snapshot($expected = null, $resolver = null) {
+        $expected = $expected === null ? self::CANDIDATE_DRAFTS : $expected;
+        if (!is_array($expected) || count($expected) > 30) return array(
+            'checked' => false, 'expected_count' => 0, 'safe_private_count' => 0,
+            'attention_count' => 0, 'rows' => array(),
+            'source_verified' => false, 'commercial_ready' => false
+        );
+        if ($resolver === null) {
+            $resolver = function($id) { return function_exists('wc_get_product') ? wc_get_product($id) : null; };
+        }
+        $rows = array(); $safe = 0; $attention = 0;
+        foreach ($expected as $id => $expected_slug) {
+            $id = (int) $id;
+            $product = is_callable($resolver) ? call_user_func($resolver, $id) : null;
+            $issues = array();
+            if (!is_object($product) || !method_exists($product, 'get_status') ||
+                !method_exists($product, 'get_slug') || !method_exists($product, 'get_price') ||
+                !method_exists($product, 'get_catalog_visibility') ||
+                !method_exists($product, 'get_stock_status') ||
+                !method_exists($product, 'is_purchasable')) {
+                $issues[] = 'PRODUCT_MISSING';
+            } else {
+                if (!is_string($expected_slug) || (string) $product->get_slug('edit') !== $expected_slug) {
+                    $issues[] = 'PRODUCT_IDENTITY_CHANGED';
+                }
+                if ($product->get_status('edit') !== 'draft') $issues[] = 'PRODUCT_NOT_DRAFT';
+                if ($product->get_catalog_visibility('edit') !== 'hidden') $issues[] = 'PRODUCT_VISIBLE';
+                if ((string) $product->get_price('edit') !== '') $issues[] = 'PRICE_SET_WITHOUT_SUPPLIER_EVIDENCE';
+                if ($product->get_stock_status('edit') !== 'outofstock') $issues[] = 'STOCK_MARKED_AVAILABLE';
+                if ($product->is_purchasable()) $issues[] = 'PURCHASABLE_BEFORE_REVIEW';
+            }
+            if ($issues) $attention++; else $safe++;
+            $rows[] = array(
+                'woo_id' => $id,
+                'safe_private_draft' => !$issues,
+                'issues' => $issues,
+                'provider_variant_verified' => false,
+                'supplier_stock_verified' => false,
+                'landed_cost_verified' => false,
+                'shipping_to_brazil_verified' => false,
+                'photos_licensed' => false,
+                'commerce_authorized' => false
+            );
+        }
+        return array(
+            'checked' => true, 'expected_count' => count($expected),
+            'safe_private_count' => $safe, 'attention_count' => $attention,
+            'rows' => $rows, 'source_verified' => false,
+            'commercial_ready' => false
+        );
+    }
+
     static function snapshot() {
         $r = array(
             'schema' => 1, 'generated_at_utc' => gmdate('c'),
             'catalog_available' => false, 'product_count' => 0, 'sku_count' => 0,
             'eprolo_security' => self::eprolo_security_snapshot(),
+            'private_candidates' => self::candidate_snapshot(),
             'truncated' => false, 'missing_sku' => 0, 'duplicate_sku' => 0,
             'low_woo_stock' => 0, 'stock_not_managed' => 0,
             'missing_weight_or_dimensions' => 0,
@@ -198,6 +264,7 @@ final class DroperAgent_Profit_Monitor {
         if (!current_user_can('manage_options')) wp_die('Sem permissão.', '', 403);
         $r = get_option(self::OPTION, false);
         $ep = self::eprolo_security_snapshot();
+        $candidates = self::candidate_snapshot();
         ?>
         <div class="wrap">
             <h1>DROPERAGENT — Autonomous Profit Monitor</h1>
@@ -218,6 +285,29 @@ final class DroperAgent_Profit_Monitor {
                 <?php endif; ?>
                 <p><a href="<?php echo esc_url($ep['advisory_url']); ?>" target="_blank" rel="noopener noreferrer">Ver aviso CVE-2026-74019 (Patchstack)</a>.
                 Nenhuma configuração, credencial ou pedido foi alterado por esta verificação.</p>
+            </section>
+            <section style="max-width:850px;padding:12px 16px;border-left:4px solid <?php echo $candidates['attention_count'] ? '#b32d2e' : '#777'; ?>;background:#fff;margin:16px 0">
+              <h2>Product Hunter — 5 candidatos privados</h2>
+              <p>Produtos pesquisados e cadastrados como rascunhos, sem preço e sem estoque vendável.
+                 <strong>Privados sem alerta:</strong> <?php echo esc_html((string) $candidates['safe_private_count']); ?> /
+                 <?php echo esc_html((string) $candidates['expected_count']); ?>.
+                 <strong>Revisão urgente:</strong> <?php echo esc_html((string) $candidates['attention_count']); ?>.</p>
+              <table class="widefat striped"><thead><tr><th>ID Woo</th><th>Estado do rascunho</th><th>Ação</th></tr></thead><tbody>
+              <?php foreach ($candidates['rows'] as $item) : ?>
+                <tr>
+                  <td><?php echo esc_html((string) $item['woo_id']); ?></td>
+                  <td><?php echo $item['safe_private_draft'] ? 'Privado e indisponível' :
+                      esc_html(implode(', ', $item['issues'])); ?></td>
+                  <td><?php $edit = function_exists('get_edit_post_link') ?
+                      get_edit_post_link($item['woo_id']) : false;
+                      if ($edit) : ?><a href="<?php echo esc_url($edit); ?>">Revisar rascunho</a><?php
+                      else : ?>Produto não encontrado<?php endif; ?></td>
+                </tr>
+              <?php endforeach; ?>
+              </tbody></table>
+              <p><strong>Nenhum candidato está aprovado para venda.</strong> Faltam SKU do fornecedor,
+                 custo, estoque confirmado, frete para CEP brasileiro, tributos e imagens autorizadas.
+                 Este painel NÃO publica produtos e NÃO atualiza preços, estoque ou pedidos.</p>
             </section>
             <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post">
                 <input type="hidden" name="action" value="droper_profit_monitor_run">
