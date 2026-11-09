@@ -139,7 +139,7 @@ F3. Solo con confirmación expresa de operación y monto: piloto real auditado.
 - [x] Existe infraestructura de código del Mapping Guard en main.
 - [x] Se documentó la existencia y limitaciones del DSers MCP oficial.
 - [x] Plan maestro en main accesible y vinculado desde README (PR #28 fusionado).
-- [x] Contrato de cotizaciones, tests y endpoint read-only en main (CI sandbox PASS; despliegue LIVE separado y aún por comprobar).
+- [x] Contrato de cotizaciones, tests y endpoint read-only en main; CI sandbox PASS y Render reporta deploy LIVE del commit main. Prueba HTTP externa de la ruta todavía NO VERIFICADA.
 - [ ] DSers conectado / mapping real verificado para 12 SKU.
 - [ ] Stock, costos, flete y margen confirmados SKU por SKU.
 - [ ] Revisión de riesgo legal/logístico completada.
@@ -156,11 +156,12 @@ F3. Solo con confirmación expresa de operación y monto: piloto real auditado.
 - Se eligió complementar el guard con evaluación de cotización por SKU / BRL / Brasil y bloqueo por evidencia incompleta.
 - Implementado src/supplier-evidence-audit.js, endpoint administrativo de preflight (sin llamadas DSers ni escrituras), docs/DSERS-SUPPLIER-EVIDENCE-CONTRACT.md, tests unitarios/HTTP y CI en PR #28.
 - Resultado inicial de CI: Core y WordPress Sandbox PASS (runs enlazados arriba). Endurecimiento posterior: no publicar margen si cotización stale/moneda incorrecta/mapping sin revisar, con pruebas añadidas. Revalidar CI del head vigente.
-- Próximo paso P0: confirmar CI del head actual; revisar diff y fusionar solo si CI verde, sin activar worker ni tocar clientes. Después obtener evidencia DSers autorizada para 12/12 SKU, revisar cotizaciones y frete Brasil.
+- Próximo paso P0: comprobar por HTTP que la nueva ruta rechaza solicitudes sin sesión (401) y que /health responde. Luego verificar vinculación DSers–WooCommerce por canal autorizado, obtener cotizaciones por SKU con envío Brasil y evaluar con el preflight. Sin efectuar compras ni pagos.
 
 **Nunca borrar entradas anteriores sin justificar la corrección.** Los cambios de estado necesitan evidencia GitHub o del sistema fuente; un checklist marcado manualmente no constituye PASS.
 
 ### 2026-11-09 UTC — checkpoint posterior a PR #28
 - PR #28 fusionado mediante squash (commit 76ebc412369e510db5c43a40dc6a54052dc8729b); main contiene el maestro, contrato, auditor, endpoint autenticado y pruebas.
 - Core Tests CI PASS, 48 unitarias y pruebas adicionales de seguridad HTTP; WP/Woo sandbox PASS. No se realizaron operaciones monetarias ni cambios en WooCommerce.
-- Siguiente P0: confirmar despliegue de Render y conducta no autenticada de la nueva ruta; después conexión DSers autorizada y evidencia 12/12. No marcar COMMERCE PASS.
+- Render verificado desde cuenta conectada: servicio srv-dbnui3rrjlhs739tv880, deploy dep-dboim3vavr4c73bgil30, estado LIVE, commit 76bdb5bd1a41ed82780f2fbccd14d246524bd3d1, completado 2026-11-09T02:08:52Z. No prueba HTTP autenticado ni datos DSers. Consulta web pública /health desde esta sesión fue inaccesible; mantener estado HTTP EXTERNO DESCONOCIDO.
+- Siguiente P0: validar HTTP real del endpoint protegido; luego DSers conexión oficial y evidencia de costos/flete/variantes 12/12. No marcar COMMERCE PASS.
