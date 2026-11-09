@@ -126,8 +126,10 @@ function evaluateSupplierEvidence(input = {}, { now = Date.now() } = {}) {
             }
           }
         }
-        totalCost = amounts.reduce((sum, value) => sum + value, 0);
-        if (priceCents !== null && priceCents > 0 && store.currency === 'BRL') {
+        // Do not label a stale, foreign-currency, mismatched or unreviewed quote as BRL margin.
+        // A low margin is still displayed so the reviewer can see why the quote was blocked.
+        if (reasons.length === 0 && priceCents !== null && priceCents > 0) {
+          totalCost = amounts.reduce((sum, value) => sum + value, 0);
           profit = priceCents - totalCost;
           const basisPoints = Math.floor((profit / priceCents) * 10000);
           margin = (basisPoints / 100).toFixed(2);
