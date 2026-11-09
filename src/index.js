@@ -15,6 +15,7 @@ const { reviewCommerce } = require('./commerce-review');
 const { evaluateMapping } = require('./supplier-mapping-guard');
 const { evaluateSupplierEvidence } = require('./supplier-evidence-audit');
 const { makeWooVariantSnapshot } = require('./woo-variation-snapshot');
+const { CJReadOnlyClient } = require('./cj-readonly-client');
 
 const app = express();
 if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
@@ -73,6 +74,19 @@ const handlers = {
     return { status: body.status, checkedAt: new Date().toISOString() };
   }
 };
+// CJ API uses a backend-only access token, never a browser VITE_* variable.
+const cj = process.env.CJ_ACCESS_TOKEN
+  ? new CJReadOnlyClient({ accessToken: process.env.CJ_ACCESS_TOKEN }) : null;
+function requireCJ(_req,res,next) {
+  if (!cj) return res.status(503).json({ error:'cj_not_configured' });
+  next();
+}
+function safeCJError(error,res) {
+  if (error instanceof TypeError) return res.status(400).json({ error:'invalid_cj_query' });
+  const code=Number.isInteger(error?.status) && [400,401,403,408,429].includes(error.status)
+    ? error.status : 502;
+  return res.status(code).json({error: code===429?'cj_rate_limited':'cj_provider_unavailable'});
+}
 const wcConfigured = Boolean(process.env.WOOCOMMERCE_URL && process.env.WC_CONSUMER_KEY && process.env.WC_CONSUMER_SECRET);
 const wc = wcConfigured ? new WooCommerceClient({
   baseUrl: process.env.WOOCOMMERCE_URL,
@@ -179,6 +193,35 @@ app.post('/api/automation/supplier-evidence-preflight', authorize, (req, res) =>
       detail: 'Provide bounded mapping, BRL/Brazil quotations and explicit margin policy'
     });
   }
+});
+// CJ API 2.0 direct sourcing: authenticated, only read endpoints and freight estimate.
+// NO purchase, payment, order creation, Woo updates, DSers access or automatic supplier matching.
+app.get('/api/sourcing/cj/status',authorize,(_req,res)=>res.json({
+  configured:Boolean(cj),readOnly:true,
+  hasAuthenticatedCJAccount:false, // do not assume env configured means live account verified
+  purchaseAuthorized:false,pointsUsageUnknown:true
+}));
+app.get('/api/sourcing/cj/search',authorize,requireCJ,async(req,res)=>{
+  try {
+    const page=req.query.page===undefined?1:Number(req.query.page);
+    const size=req.query.size===undefined?10:Number(req.query.size);
+    res.json(await cj.searchProducts({keyword:req.query.keyword,page,size}));
+  } catch(e) {safeCJError(e,res);}
+});
+app.get('/api/sourcing/cj/variants',authorize,requireCJ,async(req,res)=>{
+  try {res.json(await cj.listVariants({pid:req.query.pid}));}
+  catch(e) {safeCJError(e,res);}
+});
+app.get('/api/sourcing/cj/stock',authorize,requireCJ,async(req,res)=>{
+  try {res.json(await cj.getStock({vid:req.query.vid}));}
+  catch(e) {safeCJError(e,res);}
+});
+// POST here is a CALCULATION only (CJ logistic/freightCalculate), never order/payment.
+app.post('/api/sourcing/cj/freight-quote',authorize,requireCJ,async(req,res)=>{
+  try {
+    const body=req.body||{};
+    res.json(await cj.quoteBrazilFreight({vid:body.vid,quantity:body.quantity,origin:body.origin}));
+  } catch(e) {safeCJError(e,res);}
 });
 app.get('/api/woo/products', authorize, requireWoo, async (req, res) => {
   try {
