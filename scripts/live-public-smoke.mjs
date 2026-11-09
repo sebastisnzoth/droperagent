@@ -81,6 +81,23 @@ await check('Requires login: live Woo variant listing', async () => {
   requireStatus(r,401);
   if (r.headers.get('cache-control') !== 'no-store') throw new Error('Missing no-store');
 });
+// CJ API routes are read-only and protected; never send credentials or provider data in smoke.
+await check('Requires login: CJ direct sourcing', async () => {
+  const r = await request(API + '/api/sourcing/cj/status', {
+    headers: { Origin: ORIGIN }
+  });
+  requireStatus(r,401);
+  if (r.headers.get('cache-control') !== 'no-store') throw new Error('Missing no-store');
+});
+await check('Requires login: CJ freight quote', async () => {
+  const r = await request(API + '/api/sourcing/cj/freight-quote', {
+    method: 'POST',
+    headers: { Origin: ORIGIN, 'Content-Type': 'application/json' },
+    body: '{}'
+  });
+  requireStatus(r,401);
+  if (r.headers.get('cache-control') !== 'no-store') throw new Error('Missing no-store');
+});
 await check('Public Pages and JS bundle', async () => {
   const r = await request(SITE);
   requireStatus(r,200);
