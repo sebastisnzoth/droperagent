@@ -80,6 +80,26 @@ jobs:
           foreach(array("app_key","app_secret") as $field)delete_option("droper_api_ae_".$field);
           if ($cls::ae_open("app_key")!==false)throw new Exception("AliExpress credential deletion failed");
           if ($cls::open("key")!==$plain)throw new Exception("CJ lost after AliExpress revoke");
+          $bg_id="Banggood_1234567";
+          $bg_secret="fake_BG_secret_0123456789_abcdefghijkl";
+          if (!$cls::bg_store("app_id",$bg_id) || !$cls::bg_store("app_secret",$bg_secret))
+            throw new Exception("Banggood sealed storage failed");
+          if ($cls::bg_open("app_id")!==$bg_id || $cls::bg_open("app_secret")!==$bg_secret)
+            throw new Exception("Banggood encrypted roundtrip failed");
+          if ($cls::bg_open("invalid_field")!==false || $cls::bg_store("invalid_field","unsafe")!==false)
+            throw new Exception("Banggood arbitrary option access");
+          if (in_array("droper_api_bg_app_secret",array_keys(wp_load_alloptions()),true))
+            throw new Exception("Banggood secret auto-loaded");
+          if ($cls::open("key")!==$plain)throw new Exception("Banggood affected CJ");
+          $cls::bg_clear();
+          if ($cls::bg_open("app_id")!==false || $cls::bg_open("app_secret")!==false)
+            throw new Exception("Banggood revoke failed");
+          if ($cls::open("key")!==$plain)throw new Exception("Banggood revoke affected CJ");
+          $cls::bg_store("app_id",$bg_id);
+          $cls::bg_store("app_secret",$bg_secret);
+          if ($cls::ae_open("app_key")!==false)throw new Exception("Banggood changed AliExpress after revoke");
+          $cls::bg_clear();
+
 
           if (in_array("droper_api_cj_key", array_keys(wp_load_alloptions()),true)) throw new Exception("Secret was autoloaded");
           if (!$cls::key()) throw new Exception("Sodium unavailable");
@@ -90,7 +110,7 @@ jobs:
           $user=get_user_by("login","ci_admin");
           wp_set_current_user($user->ID);
           if (!current_user_can("manage_options")) throw new Exception("Admin permission missing");
-          echo "DROPERAGENT Connections CJ+AliExpress encryption, isolation, callback and roles PASS\n";
+          echo "DROPERAGENT Connections CJ+AliExpress+Banggood encryption, isolation, callback and roles PASS\n";
           ' --allow-root
       - name: Create and reread a real WooCommerce product via database
         run: |
