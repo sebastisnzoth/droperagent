@@ -38,8 +38,10 @@ function validateMarketBenchmarks(book) {
       !Array.isArray(book.retail_observations) || book.retail_observations.length > 30) {
     return ['Invalid research dataset or commercial guard'];
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(book.observed_on || '') ||
-      new Date(book.observed_on + 'T00:00:00Z').toISOString().slice(0,10) !== book.observed_on) {
+  const observedMs = /^\d{4}-\d{2}-\d{2}$/.test(book.observed_on || '')
+    ? Date.parse(book.observed_on + 'T00:00:00Z') : NaN;
+  if (!Number.isFinite(observedMs) ||
+      new Date(observedMs).toISOString().slice(0, 10) !== book.observed_on) {
     issues.push('Invalid observation date');
   }
   const ids = new Set(), wooIds = new Set();
