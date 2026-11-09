@@ -20,6 +20,7 @@ jobs:
           node --check src/index.js
           node --check src/supplier-evidence-audit.js
           node --check src/product-hunter-readiness.js
+          node --check src/br-market-benchmark.js
           node --check src/woo-variation-snapshot.js
           node --check src/cj-readonly-client.js
           node --check src/woocommerce-client.js
