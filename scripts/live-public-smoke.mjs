@@ -72,6 +72,15 @@ await check('Requires login: supplier evidence preflight POST', async () => {
   requireStatus(r,401);
   if (r.headers.get('cache-control') !== 'no-store') throw new Error('Missing no-store');
 });
+// Verify the new read-only variant listing never exposes SKU/prices anonymously.
+// No auth token, no product payload and no WooCommerce modifications.
+await check('Requires login: live Woo variant listing', async () => {
+  const r = await request(API + '/api/woo/products/46/variations', {
+    headers: { Origin: ORIGIN }
+  });
+  requireStatus(r,401);
+  if (r.headers.get('cache-control') !== 'no-store') throw new Error('Missing no-store');
+});
 await check('Public Pages and JS bundle', async () => {
   const r = await request(SITE);
   requireStatus(r,200);
