@@ -393,6 +393,54 @@ jobs:
               !empty($report["eprolo_security"]["safe_to_sync_orders"])) {
             throw new Exception("Autonomous monitor did not persist supplier CVE status");
           }
+          $candidate = new WC_Product_Simple();
+          $candidate->set_name("CI private sourcing candidate");
+          $candidate->set_status("draft");
+          $candidate->set_slug("ci-private-sourcing-candidate");
+          $candidate->set_catalog_visibility("hidden");
+          $candidate->set_stock_status("outofstock");
+          $candidateId = $candidate->save();
+          if (!$candidateId) throw new Exception("Private candidate could not be created");
+          $expected = array($candidateId => "ci-private-sourcing-candidate");
+          $checked = $cls::candidate_snapshot($expected);
+          if (!$checked["checked"] || $checked["expected_count"]!==1 ||
+              $checked["safe_private_count"]!==1 || $checked["attention_count"]!==0 ||
+              $checked["commercial_ready"]!==false ||
+              $checked["rows"][0]["commerce_authorized"]!==false ||
+              $checked["rows"][0]["landed_cost_verified"]!==false) {
+            throw new Exception("Private candidate incorrectly considered safe or approved");
+          }
+          $changed = wc_get_product($candidateId);
+          $changed->set_status("publish");
+          $changed->set_catalog_visibility("visible");
+          $changed->set_regular_price("10.00");
+          $changed->set_stock_status("instock");
+          $changed->save();
+          $unsafe = $cls::candidate_snapshot($expected);
+          if ($unsafe["attention_count"]!==1 ||
+              $unsafe["rows"][0]["safe_private_draft"]!==false ||
+              !in_array("PRODUCT_NOT_DRAFT", $unsafe["rows"][0]["issues"], true) ||
+              !in_array("PRODUCT_VISIBLE", $unsafe["rows"][0]["issues"], true) ||
+              !in_array("PRICE_SET_WITHOUT_SUPPLIER_EVIDENCE", $unsafe["rows"][0]["issues"], true) ||
+              !in_array("STOCK_MARKED_AVAILABLE", $unsafe["rows"][0]["issues"], true) ||
+              $unsafe["commercial_ready"]!==false) {
+            throw new Exception("Unexpected candidate publication/price/inventory was not flagged");
+          }
+          $wrongId = $cls::candidate_snapshot(array($candidateId => "different-product"));
+          if (!in_array("PRODUCT_IDENTITY_CHANGED", $wrongId["rows"][0]["issues"], true))
+            throw new Exception("Candidate identity mismatch not detected");
+          $missing = $cls::candidate_snapshot(array(9999998 => "nonexistent-draft"));
+          if (!in_array("PRODUCT_MISSING", $missing["rows"][0]["issues"], true))
+            throw new Exception("Missing candidate not detected");
+          wp_delete_post($candidateId, true);
+          $fresh = $cls::run();
+          if (!isset($fresh["private_candidates"]) ||
+              $fresh["private_candidates"]["expected_count"]!==5 ||
+              $fresh["private_candidates"]["commercial_ready"]!==false ||
+              !empty($fresh["private_candidates"]["source_verified"])) {
+            throw new Exception("Daily report is missing strict candidate verification gate");
+          }
+          echo "DROPERAGENT private candidate safety monitor PASS\n";
           echo "DROPERAGENT EPROLO CVE-2026-74019 read-only watch PASS\n";
           echo "DROPERAGENT autonomous daily read-only profit risk monitor PASS\n";
           ' --allow-root
