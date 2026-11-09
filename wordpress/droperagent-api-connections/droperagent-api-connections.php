@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DROPERAGENT — Conexões API
  * Description: Painel administrativo para credenciais criptografadas de fornecedores, com teste de leitura CJ.
- * Version: 0.2.0
+ * Version: 0.3.0
  * Requires PHP: 8.1
  * Author: DROPERAGENT
  * License: GPL-2.0-or-later
@@ -13,6 +13,7 @@ if (!class_exists('DroperAgent_API_Connections', false)) {
 final class DroperAgent_API_Connections {
     const PREFIX = 'droper_api_cj_';
     const AE_PREFIX = 'droper_api_ae_';
+    const BG_PREFIX = 'droper_api_bg_';
     static function key() {
         if (!function_exists('sodium_crypto_secretbox')) return false;
         return hash('sha256', 'droperagent-api-v1|' . wp_salt('auth') . '|' . wp_salt('secure_auth'), true);
@@ -248,6 +249,66 @@ final class DroperAgent_API_Connections {
         update_option(self::AE_PREFIX . 'last_authorized', time(), false);
         self::redirect('ae_oauth_saved');
     }
+
+    // Banggood Open Platform — provisioning only. No API request or order permission.
+    static function bg_storage_key($field) {
+        if (!in_array($field, array('app_id', 'app_secret'), true)) return false;
+        return self::BG_PREFIX . $field;
+    }
+    static function bg_open($field) {
+        $name = self::bg_storage_key($field);
+        if (!$name || !self::key()) return false;
+        $cipher = get_option($name, '');
+        if (!is_string($cipher) || substr($cipher, 0, 3) !== 'v1:') return false;
+        $raw = base64_decode(substr($cipher, 3), true);
+        if (!is_string($raw) ||
+            strlen($raw) < SODIUM_CRYPTO_SECRETBOX_NONCEBYTES + SODIUM_CRYPTO_SECRETBOX_MACBYTES) return false;
+        try {
+            $plain = sodium_crypto_secretbox_open(
+                substr($raw, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES),
+                substr($raw, 0, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES),
+                self::key()
+            );
+            return is_string($plain) && strlen($plain) > 0 ? $plain : false;
+        } catch (Throwable $e) { return false; }
+    }
+    static function bg_store($field, $text) {
+        $name = self::bg_storage_key($field);
+        if (!$name || !is_string($text) || !$text) return false;
+        $sealed = self::seal($text);
+        if (!$sealed) return false;
+        update_option($name, $sealed, false);
+        return true;
+    }
+    static function bg_clear() {
+        foreach (array('app_id', 'app_secret') as $field) delete_option(self::BG_PREFIX . $field);
+        delete_option(self::BG_PREFIX . 'reviewed_at');
+    }
+    static function bg_save() {
+        self::guard('bg_save');
+        if (!self::key()) self::redirect('crypto');
+        $id = isset($_POST['bg_app_id']) && is_string($_POST['bg_app_id'])
+            ? trim(wp_unslash($_POST['bg_app_id'])) : '';
+        $secret = isset($_POST['bg_app_secret']) && is_string($_POST['bg_app_secret'])
+            ? trim(wp_unslash($_POST['bg_app_secret'])) : '';
+        if ($id === '' && $secret === '') self::redirect('bg_unchanged');
+        if (!preg_match('/^[A-Za-z0-9_-]{3,100}$/D', $id) ||
+            strlen($secret) < 12 || strlen($secret) > 512 ||
+            !preg_match('/^[\x21-\x7E]+$/D', $secret)) self::redirect('bg_invalid');
+        // No partially configured pair is permitted, and saving doesn't grant API scopes.
+        if (!self::bg_store('app_id', $id) || !self::bg_store('app_secret', $secret)) {
+            self::bg_clear();
+            self::redirect('error');
+        }
+        delete_option(self::BG_PREFIX . 'reviewed_at');
+        self::redirect('bg_saved');
+    }
+    static function bg_remove() {
+        self::guard('bg_remove');
+        self::bg_clear();
+        self::redirect('bg_removed');
+    }
+
     static function menu() {
         if (class_exists('WooCommerce')) {
             add_submenu_page('woocommerce', 'DROPERAGENT | APIs', 'DROPERAGENT APIs',
@@ -282,6 +343,10 @@ final class DroperAgent_API_Connections {
             'ae_oauth_invalid' => 'Retorno AliExpress inválido ou expirado. Reinicie a autorização.',
             'ae_oauth_failed' => 'AliExpress não confirmou OAuth. Confira categoria da aplicação, aprovação e URL de retorno.',
             'ae_oauth_saved' => 'Token OAuth AliExpress criptografado no WordPress. Permissões de API e sourcing AINDA NÃO VERIFICADAS.',
+            'bg_saved' => 'Banggood App ID e App Secret guardados com criptografia. Aprovação e acesso à API ainda não foram verificados.',
+            'bg_removed' => 'Credenciais Banggood removidas, sem alterar CJ ou AliExpress.',
+            'bg_unchanged' => 'Nenhuma credencial Banggood alterada.',
+            'bg_invalid' => 'Informe um App ID e um App Secret Banggood válidos, sempre juntos.',
         );
         $notice = isset($_GET['da_notice']) ? sanitize_key(wp_unslash($_GET['da_notice'])) : '';
         $has_key = (bool) get_option(self::PREFIX . 'key', false);
@@ -299,7 +364,7 @@ final class DroperAgent_API_Connections {
             .droper-api-admin .da-card h2{margin:0 0 10px}.droper-api-admin .da-card p{line-height:1.6}
             .droper-api-admin .da-pill{display:inline-block;background:#edf1f5;padding:5px 12px;border-radius:20px;font-size:12px}
             .droper-api-admin .da-pill.good{background:#e1f7ed;color:#0a7352}.droper-api-admin .da-warning{max-width:1110px;background:#e9f7f3;padding:14px 18px;border-left:4px solid #087b69}
-            .droper-api-admin #cj_api_key,.droper-api-admin #ae_app_key,.droper-api-admin #ae_app_secret{width:100%;max-width:500px;min-height:42px}
+            .droper-api-admin #cj_api_key,.droper-api-admin #ae_app_key,.droper-api-admin #ae_app_secret,.droper-api-admin #bg_app_id,.droper-api-admin #bg_app_secret{width:100%;max-width:500px;min-height:42px}
           </style>
           <div class="da-grid">
             <section class="da-card" style="grid-column:1/-1">
@@ -353,9 +418,37 @@ final class DroperAgent_API_Connections {
               <p><small><strong>Importante:</strong> a autorização OAuth acima segue o fluxo de desenvolvedor publicado pela AliExpress para apps que o suportam. Algumas aplicações Dropshipping utilizam somente App Key/App Secret; se seu programa usar outra autenticação, confirme no portal oficial antes de autorizar. Nenhuma consulta de sourcing está habilitada nesta etapa.</small></p>
               <p><a href="https://console.aliexpress.com/" target="_blank" rel="noopener noreferrer">Abrir AliExpress Open Platform — criar/validar app Dropshipping</a></p>
             </section>
+            <section class="da-card" style="grid-column:1/-1">
+              <h2>Banggood — Dropship API</h2>
+              <?php
+              $bg_configured = (bool) self::bg_open('app_id') && (bool) self::bg_open('app_secret');
+              ?>
+              <span class="da-pill"><?php echo $bg_configured
+                  ? 'Credenciais salvas — aprovação e API não verificadas'
+                  : 'Não configurado'; ?></span>
+              <p>O programa de dropshipping Banggood anuncia uma API gratuita para parceiros aprovados. Solicite acesso no site oficial, confirme os requisitos e obtenha App ID / App Secret. <strong>Esta etapa apenas protege as credenciais.</strong></p>
+              <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" autocomplete="off">
+                <input type="hidden" name="action" value="droper_api_bg_save">
+                <?php wp_nonce_field('droper_api_bg_save'); ?>
+                <p><label for="bg_app_id"><strong>Banggood App ID</strong></label><br>
+                <input type="password" id="bg_app_id" name="bg_app_id" maxlength="100"
+                    autocomplete="new-password" placeholder="<?php echo $bg_configured ? 'Salvo — informe ambos os campos para substituir' : 'App ID do Banggood Open Platform'; ?>"></p>
+                <p><label for="bg_app_secret"><strong>Banggood App Secret</strong></label><br>
+                <input type="password" id="bg_app_secret" name="bg_app_secret" maxlength="512"
+                    autocomplete="new-password" placeholder="<?php echo $bg_configured ? 'Salvo — informe ambos os campos para substituir' : 'App Secret privado'; ?>"></p>
+                <p><button type="submit" class="button button-primary">Guardar credenciais Banggood</button></p>
+              </form>
+              <?php self::form('bg_remove', 'Remover credenciais Banggood', !$bg_configured,
+                'onsubmit="return confirm(\'Remover somente as credenciais Banggood?\')"'); ?>
+              <p><a href="https://api.banggood.com/index.php?com=account&amp;t=login"
+                  target="_blank" rel="noopener noreferrer">Abrir Banggood Open Platform</a> |
+                <a href="https://www.banggood.com/index.php?com=dropshipcenter&amp;t=Login"
+                  target="_blank" rel="noopener noreferrer">Solicitar programa Dropshipping</a></p>
+              <p><small>A API oficial requer aprovação e pode exigir verificação do domínio/IP. O método de autenticação e os endpoints de consulta deverão ser confirmados na conta autorizada antes de implementar o botão de teste. Nenhum token ou conexão de fornecedor foi validado.</small></p>
+              <p><small>Sem chamadas à API, pedidos, alterações de SKU/preços/estoque, compras ou pagamentos.</small></p>
+            </section>
             <?php
             $providers = array(
-                'Banggood' => 'Programa de API para dropshippers: solicitar acesso.',
                 'Alibaba.com' => 'API B2B: requer habilitação de desenvolvedor e fornecedor.',
                 'Temu' => 'Partner API para vendedores, não API pública de compras para WooCommerce.',
                 'EPROLO' => 'Conector WooCommerce via plugin; acesso e preços sujeitos à conta.',
@@ -379,6 +472,8 @@ final class DroperAgent_API_Connections {
         add_action('admin_post_droper_api_ae_remove', array(__CLASS__, 'ae_remove'));
         add_action('admin_post_droper_api_ae_authorize', array(__CLASS__, 'ae_authorize'));
         add_action('admin_post_droper_api_ae_callback', array(__CLASS__, 'ae_callback'));
+        add_action('admin_post_droper_api_bg_save', array(__CLASS__, 'bg_save'));
+        add_action('admin_post_droper_api_bg_remove', array(__CLASS__, 'bg_remove'));
 
     }
 }
