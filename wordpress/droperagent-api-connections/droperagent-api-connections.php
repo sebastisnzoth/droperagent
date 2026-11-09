@@ -178,7 +178,7 @@ final class DroperAgent_API_Connections {
     }
     static function ae_callback_url() {
         // Register this exact HTTPS callback in AliExpress Open Platform before OAuth.
-        return admin_url('admin-post.php?action=droper_api_ae_callback', 'https');
+        return add_query_arg('action', 'droper_api_ae_callback', set_url_scheme(admin_url('admin-post.php'), 'https'));
     }
     static function ae_authorize() {
         self::guard('ae_authorize');
