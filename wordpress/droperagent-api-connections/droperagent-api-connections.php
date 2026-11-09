@@ -2,7 +2,7 @@
 /**
  * Plugin Name: DROPERAGENT — Conexões API
  * Description: Painel administrativo para credenciais criptografadas de fornecedores, com teste de leitura CJ.
- * Version: 0.3.0
+ * Version: 0.4.0
  * Requires PHP: 8.1
  * Author: DROPERAGENT
  * License: GPL-2.0-or-later
@@ -309,6 +309,159 @@ final class DroperAgent_API_Connections {
         self::redirect('bg_removed');
     }
 
+
+    /**
+     * Admin-only catalog and Brazilian shipping readiness snapshot.
+     * WooCommerce-only READ operations, no supplier calls, no writes, no fake rates.
+     * Bounded to 30 parent products and 240 variations per request.
+     */
+    static function commerce_readiness_snapshot() {
+        $snapshot = array(
+            'product_count' => 0, 'variant_count' => 0, 'skus_missing' => 0,
+            'duplicate_skus' => 0, 'low_stock_count' => 0,
+            'accessory_review_count' => 0, 'missing_dimensions' => 0,
+            'truncated' => false, 'rows' => array(),
+            'currency' => function_exists('get_woocommerce_currency') ? get_woocommerce_currency() : 'unknown',
+            'tax_enabled' => function_exists('wc_tax_enabled') ? (bool) wc_tax_enabled() : null,
+            'shipping' => array(
+                'br_zone_exists' => false, 'br_enabled_methods' => 0,
+                'other_enabled_methods' => 0, 'fallback_enabled_methods' => 0,
+                'cost_verified' => false, 'crossborder_freight_verified' => false
+            ),
+            'supplier_stock_verified' => false, 'supplier_costs_verified' => false,
+            'checkout_ready' => false, 'read_only' => true,
+        );
+        if (!class_exists('WooCommerce') || !function_exists('wc_get_products')) return $snapshot;
+        $products = wc_get_products(array('type' => 'variable', 'status' => 'publish',
+            'limit' => 31, 'orderby' => 'ID', 'order' => 'ASC'));
+        if (count($products) > 30) { $snapshot['truncated'] = true; $products = array_slice($products, 0, 30); }
+        $seen = array();
+        foreach ($products as $product) {
+            $snapshot['product_count']++;
+            $children = array_slice((array) $product->get_children(), 0, 241);
+            if (count($children) > 240) { $snapshot['truncated'] = true; $children = array_slice($children, 0, 240); }
+            foreach ($children as $child_id) {
+                if (count($snapshot['rows']) >= 240) { $snapshot['truncated'] = true; break 2; }
+                $v = wc_get_product($child_id);
+                if (!$v || !$v->is_type('variation') || $v->get_status() !== 'publish') continue;
+                $sku = (string) $v->get_sku('edit');
+                $price = (string) $v->get_price('edit');
+                $quantity = $v->get_stock_quantity('edit');
+                $manage = $v->get_manage_stock('edit');
+                $options = array();
+                foreach ((array) $v->get_attributes('edit') as $name => $option) {
+                    $options[] = (string) $name . '=' . (string) $option;
+                }
+                $opt_label = implode(', ', $options);
+                $accessory = (bool) preg_match('/only.?access|no.?accessor/i', $sku . ' ' . $opt_label);
+                $low_stock = $manage && $quantity !== null && (int) $quantity <= 1;
+                $weight = (string) $v->get_weight();
+                $length = (string) $v->get_length();
+                $width  = (string) $v->get_width();
+                $height = (string) $v->get_height();
+                $dims_missing = ($weight === '' || $length === '' || $width === '' || $height === '');
+                if ($sku === '') $snapshot['skus_missing']++;
+                else {
+                    if (isset($seen[$sku])) $snapshot['duplicate_skus']++;
+                    $seen[$sku] = true;
+                }
+                if ($low_stock) $snapshot['low_stock_count']++;
+                if ($accessory) $snapshot['accessory_review_count']++;
+                if ($dims_missing) $snapshot['missing_dimensions']++;
+                $snapshot['variant_count']++;
+                $snapshot['rows'][] = array(
+                    'product_id' => (int) $product->get_id(), 'variation_id' => (int) $v->get_id(),
+                    'sku' => $sku, 'option' => $opt_label, 'price' => $price,
+                    'stock_quantity' => $quantity === null ? null : (int) $quantity,
+                    'stock_managed' => (bool) $manage,
+                    'low_stock' => (bool) $low_stock, 'accessory_review' => (bool) $accessory,
+                    'missing_dimensions' => (bool) $dims_missing,
+                );
+            }
+        }
+        if (class_exists('WC_Shipping_Zones')) {
+            $zones = WC_Shipping_Zones::get_zones();
+            foreach ((array) $zones as $zone) {
+                $locations = (array) ($zone['zone_locations'] ?? array());
+                $is_br = false;
+                foreach ($locations as $loc) {
+                    $type = (string) ($loc->type ?? '');
+                    $code = (string) ($loc->code ?? '');
+                    if (($type === 'country' && $code === 'BR') ||
+                        ($type === 'state' && strpos($code, 'BR:') === 0)) {
+                        $is_br = true;
+                        break;
+                    }
+                }
+                if ($is_br) $snapshot['shipping']['br_zone_exists'] = true;
+                foreach ((array) ($zone['shipping_methods'] ?? array()) as $method) {
+                    if (!is_object($method) || !method_exists($method, 'is_enabled') || !$method->is_enabled()) continue;
+                    if ($is_br) $snapshot['shipping']['br_enabled_methods']++;
+                    else $snapshot['shipping']['other_enabled_methods']++;
+                }
+            }
+            // Woo's fallback zone does not necessarily cover Brazil if another zone matches.
+            $fallback = new WC_Shipping_Zone(0);
+            $snapshot['shipping']['fallback_enabled_methods'] = count($fallback->get_shipping_methods(true));
+        }
+        // Without a verified all-in supplier price and freight, this never authorizes checkout.
+        return $snapshot;
+    }
+    static function commerce_readiness_card() {
+        if (!current_user_can('manage_options')) return;
+        $audit = self::commerce_readiness_snapshot();
+        $shipping = $audit['shipping'];
+        ?>
+        <section class="da-card" style="grid-column:1/-1">
+          <h2>Auditoria WooCommerce — SKU, preço, estoque e frete Brasil</h2>
+          <p><span class="da-pill"><?php echo esc_html($audit['variant_count']); ?> variantes em <?php echo esc_html($audit['product_count']); ?> produtos</span>
+          <span class="da-pill">Moeda: <?php echo esc_html($audit['currency']); ?></span>
+          <span class="da-pill">Auditoria somente leitura</span></p>
+          <p><strong>Frete Brasil:</strong>
+            <?php echo $shipping['br_enabled_methods'] > 0
+                ? 'Método cadastrado (valor e cobertura ainda precisam ser verificados).'
+                : 'SEM método habilitado em zona Brasil.'; ?>
+            <?php if ($shipping['fallback_enabled_methods'] > 0) : ?>
+              Método de zona padrão encontrado; verificar se alcança o CEP do comprador.
+            <?php else : ?>
+              Zona padrão também sem métodos.
+            <?php endif; ?>
+            <br><strong>Custos logísticos e impostos de importação:</strong> não verificados.
+            <br><strong>Tributos configurados em WooCommerce:</strong> <?php echo $audit['tax_enabled'] ? 'habilitados' : 'desabilitados'; ?> (não equivale a regularidade fiscal).
+          </p>
+          <p><a class="button" href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=shipping')); ?>">Abrir configurações nativas de frete WooCommerce</a>
+          <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=wc-settings&tab=general')); ?>">Abrir configurações gerais</a></p>
+          <p><strong>Alertas:</strong>
+          <?php echo esc_html($audit['skus_missing']); ?> SKU vazios,
+          <?php echo esc_html($audit['duplicate_skus']); ?> SKU duplicados,
+          <?php echo esc_html($audit['low_stock_count']); ?> variantes com estoque ≤ 1,
+          <?php echo esc_html($audit['accessory_review_count']); ?> opções que exigem confirmação de conteúdo,
+          <?php echo esc_html($audit['missing_dimensions']); ?> variantes sem peso/medidas completos.</p>
+          <div style="max-width:100%;overflow-x:auto"><table class="widefat striped">
+            <thead><tr><th>Produto / ID</th><th>SKU WooCommerce</th><th>Opção</th><th>Preço loja (<?php echo esc_html($audit['currency']); ?>)</th><th>Estoque na loja</th><th>Revisar</th></tr></thead>
+            <tbody>
+            <?php foreach ($audit['rows'] as $row) :
+                $issues = array();
+                if ($row['sku'] === '') $issues[] = 'SKU ausente';
+                if ($row['accessory_review']) $issues[] = 'conteúdo/kit';
+                if ($row['low_stock']) $issues[] = 'estoque baixo';
+                if ($row['missing_dimensions']) $issues[] = 'peso/medidas';
+            ?>
+              <tr><td><a href="<?php echo esc_url(get_edit_post_link($row['product_id'])); ?>">#<?php echo esc_html($row['product_id']); ?></a>
+                  / <?php echo esc_html($row['variation_id']); ?></td>
+                <td><code><?php echo esc_html($row['sku']); ?></code></td>
+                <td><?php echo esc_html($row['option']); ?></td>
+                <td><?php echo esc_html($row['price'] === '' ? 'Não informado' : wc_format_localized_price($row['price'])); ?></td>
+                <td><?php echo esc_html($row['stock_quantity'] === null ? 'Não informado' : (string) $row['stock_quantity']); ?></td>
+                <td><?php echo esc_html($issues ? implode(', ', $issues) : 'revisão de fornecedor pendente'); ?></td></tr>
+            <?php endforeach; ?></tbody></table></div>
+          <?php if ($audit['truncated']) : ?><p><strong>Relatório parcial:</strong> limite de 30 produtos / 240 variantes por acesso. Não presumir auditoria completa.</p><?php endif; ?>
+          <p><strong>Este relatório não confirma custo de aquisição, lucro, disponibilidade na China, conformidade ANATEL ou prazo de entrega.</strong>
+          O estoque acima é somente o valor armazenado na loja. Não configurar frete grátis nem taxa fixa sem cotação comprovada.</p>
+        </section>
+        <?php
+    }
+
     static function menu() {
         if (class_exists('WooCommerce')) {
             add_submenu_page('woocommerce', 'DROPERAGENT | APIs', 'DROPERAGENT APIs',
@@ -459,6 +612,7 @@ final class DroperAgent_API_Connections {
                 <small>Nenhuma chave cadastrada. Compras e pedidos desabilitados.</small></section>
             <?php endforeach; ?>
           </div>
+          <?php self::commerce_readiness_card(); ?>
           <p class="da-warning"><strong>Modo seguro:</strong> este painel não modifica produtos, SKUs, preços, pedidos ou pagamentos. Só o administrador pode guardar ou testar a chave CJ.</p>
         </div>
         <?php

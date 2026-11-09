@@ -112,6 +112,55 @@ jobs:
           if (!current_user_can("manage_options")) throw new Exception("Admin permission missing");
           echo "DROPERAGENT Connections CJ+AliExpress+Banggood encryption, isolation, callback and roles PASS\n";
           ' --allow-root
+      - name: Verify real WooCommerce variant and shipping readiness is read-only
+        run: |
+          docker compose run --rm --user 0 --entrypoint wp wpcli eval '
+          $cls="DroperAgent_API_Connections";
+          $p = new WC_Product_Variable();
+          $p->set_name("CI Variable Product");
+          $p->set_status("publish");
+          $p->set_sku("ci-audit-parent");
+          $att = new WC_Product_Attribute();
+          $att->set_name("Color");
+          $att->set_options(array("OnlyAccess","Blue"));
+          $att->set_visible(true);
+          $att->set_variation(true);
+          $p->set_attributes(array($att));
+          $id = $p->save();
+          if (!$id) throw new Exception("Variable parent creation failed");
+          $v = new WC_Product_Variation();
+          $v->set_parent_id($id);
+          $v->set_status("publish");
+          $v->set_sku("ci-onlyaccess-test");
+          $v->set_attributes(array("Color"=>"OnlyAccess"));
+          $v->set_regular_price("6.44");
+          $v->set_manage_stock(true);
+          $v->set_stock_quantity(1);
+          $vid = $v->save();
+          if (!$vid) throw new Exception("Variation creation failed");
+          $before = (int) wc_get_product($vid)->get_stock_quantity();
+          $audit = $cls::commerce_readiness_snapshot();
+          if (!is_array($audit) || $audit["read_only"] !== true || $audit["checkout_ready"] !== false) {
+            throw new Exception("Readiness audit authorization is unsafe");
+          }
+          if ($audit["variant_count"] < 1 || $audit["product_count"] < 1) {
+            throw new Exception("Snapshot did not see variable product");
+          }
+          $matches = array_values(array_filter($audit["rows"],
+            function($row) use ($vid) { return $row["variation_id"] === $vid; }));
+          if (count($matches)!==1) throw new Exception("Variation not found in audit");
+          if ($matches[0]["price"] !== "6.44" || $matches[0]["sku"] !== "ci-onlyaccess-test")
+            throw new Exception("SKU / store price mismatch");
+          if (!$matches[0]["low_stock"] || !$matches[0]["accessory_review"] || !$matches[0]["missing_dimensions"])
+            throw new Exception("Risk review missed low stock, accessory, missing dimensions");
+          if ($before !== (int) wc_get_product($vid)->get_stock_quantity())
+            throw new Exception("Readiness scan mutated stock");
+          if (!empty($audit["shipping"]["cost_verified"]) || !empty($audit["shipping"]["crossborder_freight_verified"]))
+            throw new Exception("Shipping was claimed verified without quote");
+          $anon=0; wp_set_current_user($anon);
+          if (current_user_can("manage_options")) throw new Exception("Anon unexpectedly has audit admin permission");
+          echo "DROPERAGENT catalog + Brazil shipping readiness read-only audit PASS\n";
+          ' --allow-root
       - name: Create and reread a real WooCommerce product via database
         run: |
           docker compose run --rm --user 0 --entrypoint wp wpcli eval '
