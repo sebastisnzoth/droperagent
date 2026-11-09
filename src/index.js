@@ -14,6 +14,7 @@ const { attachBridge } = require('./bridge-inbox');
 const { reviewCommerce } = require('./commerce-review');
 const { evaluateMapping } = require('./supplier-mapping-guard');
 const { evaluateSupplierEvidence } = require('./supplier-evidence-audit');
+const { makeWooVariantSnapshot } = require('./woo-variation-snapshot');
 
 const app = express();
 if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
@@ -190,6 +191,29 @@ app.get('/api/woo/products', authorize, requireWoo, async (req, res) => {
 app.get('/api/woo/products/:id', authorize, requireWoo, async (req, res) => {
   try { const p = await wc.getProduct(Number(req.params.id)); res.json({ id: p.id, name: p.name, status: p.status, price: p.price, stock_quantity: p.stock_quantity, description: p.description }); }
   catch (error) { handleWooError(error, res); }
+});
+// Authenticated LIVE Woo variation snapshot. SKU/attributes/retail prices only:
+// NEVER assume DSers supplier mapping, landed cost, supplier stock or currency.
+app.get('/api/woo/products/:id/variations', authorize, requireWoo, async (req, res) => {
+  const productId = Number(req.params.id);
+  const page = req.query.page === undefined ? 1 : Number(req.query.page);
+  const perPage = req.query.per_page === undefined ? 30 : Number(req.query.per_page);
+  if (!Number.isSafeInteger(productId) || productId < 1 ||
+      !Number.isInteger(page) || page < 1 || page > 100 ||
+      !Number.isInteger(perPage) || perPage < 1 || perPage > 100) {
+    return res.status(400).json({ error: 'invalid_variation_query' });
+  }
+  try {
+    const product = await wc.getProduct(productId);
+    if (product.type !== 'variable') return res.status(409).json({ error: 'not_variable_product' });
+    const raw = await wc.listProductVariations(productId, { page, perPage });
+    const snapshot = makeWooVariantSnapshot(product, raw, { page, perPage });
+    return res.json(snapshot);
+  } catch (error) {
+    // Invalid/foreign upstream payload must fail closed with no provider details.
+    if (error instanceof TypeError) return res.status(502).json({ error: 'invalid_variation_upstream_response' });
+    return handleWooError(error, res);
+  }
 });
 app.post('/api/woo/products/drafts', authorize, requireWoo, async (req, res) => {
   try {
