@@ -161,6 +161,51 @@ jobs:
           if (current_user_can("manage_options")) throw new Exception("Anon unexpectedly has audit admin permission");
           echo "DROPERAGENT catalog + Brazil shipping readiness read-only audit PASS\n";
           ' --allow-root
+      - name: Verify manual BRL quote and margin ledger is fail-closed
+        run: |
+          docker compose run --rm --user 0 --entrypoint wp wpcli eval '
+          $cls = "DroperAgent_API_Connections";
+          if ($cls::cost_amount_cents("6,44") !== 644 || $cls::cost_amount_cents("0") !== 0 ||
+              $cls::cost_amount_cents("999.99") !== 99999 ||
+              $cls::cost_amount_cents("0,1") !== 10) throw new Exception("BRL cents parser incorrect");
+          foreach (array("-1.00", "1.234,56", "1e3", "0.001", "", "NaN", "10x", "1 2") as $bad)
+            if ($cls::cost_amount_cents($bad) !== false)
+              throw new Exception("Unsafe amount accepted: " . $bad);
+          $vid = 4321; $sku = "ci-quote-sku";
+          $name = $cls::cost_option_name($vid);
+          if ($cls::cost_option_name(0) !== false) throw new Exception("Invalid quote ID");
+          $record = array("schema" => 1, "sku_hash" => hash("sha256", $sku),
+            "price_at_capture" => 644, "timestamp" => time() - DAY_IN_SECONDS,
+            "supplier" => 500, "shipping" => 300, "import_tax" => 100,
+            "payment_fee" => 50, "other" => 40, "origin_country" => "CN",
+            "destination_cep" => "88054000",
+            "source_url" => "https://supplier.example/quote",
+            "evidence_status" => "operator_entry_not_independently_verified");
+          update_option($name, $record, false);
+          if (in_array($name, array_keys(wp_load_alloptions()), true))
+            throw new Exception("Quote was autoloaded");
+          $stored = $cls::cost_quote_read($vid, $sku);
+          if (!$stored || $cls::cost_quote_read($vid, "different-sku") !== false)
+            throw new Exception("Quote/SKU identity check failed");
+          $calc = $cls::cost_evidence_report($stored, "6.44");
+          if ($calc["cost_total_cents"] !== 990 || $calc["gross_margin_cents"] !== -346 ||
+              $calc["sell_authorized"] !== false || $calc["supplier_verified"] !== false ||
+              $calc["shipping_verified"] !== false || $calc["taxes_verified"] !== false ||
+              $calc["stale"] !== false || $calc["price_changed"] !== false)
+            throw new Exception("Quote margin or verification gate failed");
+          $changed = $cls::cost_evidence_report($stored, "7.00");
+          if (!$changed["price_changed"]) throw new Exception("Price change not detected");
+          $record["timestamp"] = time() - 16 * DAY_IN_SECONDS;
+          $stale = $cls::cost_evidence_report($record, "6.44");
+          if (!$stale["stale"]) throw new Exception("Expired supplier quote considered fresh");
+          $record["supplier"] = -5;
+          if ($cls::cost_evidence_report($record, "6.44") !== false)
+            throw new Exception("Negative supplier cost accepted");
+          delete_option($name);
+          if ($cls::cost_quote_read($vid, $sku) !== false)
+            throw new Exception("Quote record was not deleted");
+          echo "DROPERAGENT per-SKU manual cost evidence, negative margin, identity, expiry and redaction PASS\n";
+          ' --allow-root
       - name: Create and reread a real WooCommerce product via database
         run: |
           docker compose run --rm --user 0 --entrypoint wp wpcli eval '
