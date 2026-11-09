@@ -45,6 +45,8 @@ test('rejects duplicate IDs, duplicate SKUs and malformed variations', () => {
   assert.throws(() => makeWooVariantSnapshot(product, [variant, variant], {page:1,perPage:30}), /Duplicate/);
   assert.throws(() => makeWooVariantSnapshot(product, [{...variant, attributes:[{name:'Color',option:'A'}, {name:'Color',option:'B'}]}], {page:1,perPage:30}), /attribute/);
   assert.throws(() => makeWooVariantSnapshot(product, {}, {page:1,perPage:30}), /Invalid/);
+  assert.throws(() => normalizeVariation({ ...variant, attributes:[{ name:'__proto__',option:'tainted' }] }, 46), /attribute/);
+  assert.equal(Object.prototype.tainted, undefined);
 });
 test('requires variable parent and bounded page', () => {
   assert.throws(() => makeWooVariantSnapshot({...product,type:'simple'}, [variant], {page:1,perPage:30}), /Invalid/);
