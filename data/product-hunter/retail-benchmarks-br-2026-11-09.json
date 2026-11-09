@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "market": "BR",
+  "currency": "BRL",
+  "observed_on": "2026-11-09",
+  "source_type": "PUBLIC_BRAZIL_RETAIL_LISTINGS",
+  "methodology": "Amostra manual de 2 ofertas publicas de varejo por tipo de artigo, nao necessariamente mesma variante, observadas por mecanismo de busca. Valores e cupom dependem de horario/localidade.",
+  "sample_only": true,
+  "market_full_coverage": false,
+  "comparison_confirms_supplier_price": false,
+  "prices_are_supplier_quotes": false,
+  "shipping_included_in_our_store": false,
+  "verified_competitive_demand": false,
+  "target_margin_policy_approved": false,
+  "commercially_ready": false,
+  "retail_observations": [
+    {
+      "candidate_id": "PH-001",
+      "woo_draft_id": 99,
+      "comparison": "Escovas manuais/massageadoras para remoção de pelos pet; modelos podem divergir quanto a autolimpeza, silicone e acessórios",
+      "comparability": "PARTIAL",
+      "observations": [
+        {
+          "product": "Escova Pet Removedora de Pelos Autolimpante Mágica",
+          "price_brl": "21.90",
+          "url": "https://lista.mercadolivre.com.br/escova-removedora-pelos-pet"
+        },
+        {
+          "product": "Escova Removedora de Pelos Massageadora Gatos Cachorros Pets",
+          "price_brl": "25.90",
+          "url": "https://produto.mercadolivre.com.br/MLB-5327397298-escova-removedora-de-pelos-massageadora-gatos-cachorros-pets-_JM"
+        }
+      ]
+    },
+    {
+      "candidate_id": "PH-002",
+      "woo_draft_id": 100,
+      "comparison": "Escorredores de silicone para panela, tipo clipe",
+      "comparability": "PARTIAL",
+      "observations": [
+        {
+          "product": "Coziador Escorredor De Silicone Para Panela Tipo Clip",
+          "price_brl": "20.40",
+          "url": "https://lista.mercadolivre.com.br/escorredor-de-silicone"
+        },
+        {
+          "product": "Escorredor De Cozinha Com Clipe Para Panela, Suporte De Dren",
+          "price_brl": "39.03",
+          "url": "https://produto.mercadolivre.com.br/MLB-5116090123-escorredor-de-cozinha-com-clipe-para-panela-suporte-de-dren-_JM"
+        }
+      ]
+    },
+    {
+      "candidate_id": "PH-003",
+      "woo_draft_id": 101,
+      "comparison": "Kit de organizadores de mala com sete peças, composição de tecidos e tamanhos a verificar",
+      "comparability": "PARTIAL",
+      "observations": [
+        {
+          "product": "Organizador De Mala Para Viagem Kit 7 Peças Completo",
+          "price_brl": "35.49",
+          "url": "https://lista.mercadolivre.com.br/kit-organizador-de-malas-para-viagem-7-pe%C3%A7as"
+        },
+        {
+          "product": "Organizador De Malas Bolsas De Viagem Kit Necessaire 7 Peças",
+          "price_brl": "36.90",
+          "url": "https://produto.mercadolivre.com.br/MLB-3966783995-organizador-de-malas-bolsas-de-viagem-kit-necessaire-7-pecas-_JM"
+        }
+      ]
+    },
+    {
+      "candidate_id": "PH-004",
+      "woo_draft_id": 102,
+      "comparison": "Kit de seis organizadores adesivos para cables; material silicone de referencia no equivale necesariamente al PVC de candidato",
+      "comparability": "LOW",
+      "observations": [
+        {
+          "product": "Enrolador Adesivo Shoplindiniz Organizador de Fios Silicone 6 Unidades",
+          "price_brl": "25.34",
+          "url": "https://lista.mercadolivre.com.br/enrolador-suporte-organizador-cabos-fios-silicone-adesivo"
+        },
+        {
+          "product": "Kit 6 Organizador Enrolador Fios Cabos De Silicone Adesivo",
+          "price_brl": "29.65",
+          "url": "https://lista.mercadolivre.com.br/enrolador-suporte-organizador-cabos-fios-silicone-adesivo"
+        }
+      ]
+    },
+    {
+      "candidate_id": "PH-005",
+      "woo_draft_id": 103,
+      "comparison": "Bandejas organizadoras de talheres; numero de divisorias/tamanhos/material pueden diferir",
+      "comparability": "LOW",
+      "observations": [
+        {
+          "product": "Porta Talheres Organizador de Gaveta Para Utensílios Conjunto com 4 Divisórias",
+          "price_brl": "24.90",
+          "url": "https://lista.mercadolivre.com.br/organizador-talheres"
+        },
+        {
+          "product": "Porta Talheres De Gaveta Com Divisórias Organizador Cozinha",
+          "price_brl": "29.98",
+          "url": "https://lista.mercadolivre.com.br/organizador-talheres-gaveta"
+        }
+      ]
+    }
+  ],
+  "review_notes": [
+    "Nao usar valores como preco da loja WooCommerce, apenas referencia competitiva de varejo",
+    "Ofertas e cupons mudam; dados de frete de marketplaces nao equivalem a quote de fornecedor EPROLO",
+    "Sem confirmar variante exata, valor inferior nao e teto de preco juridico/comercial",
+    "Nao confundir limite ilustrativo de custo total com custo real ou lucro verificado",
+    "Sem fornecedor seguro conectado, 5 drafts WooCommerce permanecem privados e indisponiveis"
+  ]
+}
