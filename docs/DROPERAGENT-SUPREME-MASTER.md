@@ -48,7 +48,7 @@ La exigencia “sin restricciones” significa **independencia técnica y máxim
 ### EN CURSO — este incremento
 - Rama: feat/supreme-v4-supplier-evidence
 - Alcance exclusivo: este plan maestro; contrato de datos de cotizaciones; auditor puro de evidencia de costos/flete/rentabilidad reutilizando Mapping Guard #20; pruebas; endpoint autenticado de solo lectura si pasa CI.
-- Estado de entrega: **PENDIENTE DE CONFIRMAR PR Y CI** (actualizar luego de crearlos).
+- Estado de entrega: **PR #28 ABIERTO**: https://github.com/sebastisnzoth/droperagent/pull/28 (draft, no fusionado hasta CI/revisión). Primer head sometido a CI: e5c4064ae9c636f7d019aebac83ece10cd419f73; Core Tests PASS https://github.com/sebastisnzoth/droperagent/actions/runs/42548730567 ; WP/Woo Sandbox PASS https://github.com/sebastisnzoth/droperagent/actions/runs/42548730504 . Tras endurecer cálculo y actualizar tests se requiere CI nuevo en el head actual.
 - No tocar productos WooCommerce, pagos, inventario, credenciales ni fuentes DSers.
 
 ### PENDIENTE / BLOQUEADO
@@ -138,8 +138,8 @@ F3. Solo con confirmación expresa de operación y monto: piloto real auditado.
 
 - [x] Existe infraestructura de código del Mapping Guard en main.
 - [x] Se documentó la existencia y limitaciones del DSers MCP oficial.
-- [ ] Plan maestro en main, accesible y vinculado desde README.
-- [ ] Contrato de cotizaciones con pruebas y endpoint read-only en main.
+- [ ] Plan maestro en main (ya está creado, vinculado desde README de PR #28; pendiente merge).
+- [ ] Contrato de cotizaciones, tests y endpoint read-only en main (ya implementado en PR #28; pendiente merge).
 - [ ] DSers conectado / mapping real verificado para 12 SKU.
 - [ ] Stock, costos, flete y margen confirmados SKU por SKU.
 - [ ] Revisión de riesgo legal/logístico completada.
@@ -154,6 +154,8 @@ F3. Solo con confirmación expresa de operación y monto: piloto real auditado.
 - Se auditaron main, README, src/index.js, src/woocommerce-client.js, mapping guard, tests y flujos de CI.
 - Se confirmó #20, #22, #23 fusionados; #13, #18, #19 abiertos; no duplicar.
 - Se eligió complementar el guard con evaluación de cotización por SKU / BRL / Brasil y bloqueo por evidencia incompleta.
-- Próximo paso: terminar el módulo, probarlo, abrir PR y actualizar esta sección con resultado exacto.
+- Implementado src/supplier-evidence-audit.js, endpoint administrativo de preflight (sin llamadas DSers ni escrituras), docs/DSERS-SUPPLIER-EVIDENCE-CONTRACT.md, tests unitarios/HTTP y CI en PR #28.
+- Resultado inicial de CI: Core y WordPress Sandbox PASS (runs enlazados arriba). Endurecimiento posterior: no publicar margen si cotización stale/moneda incorrecta/mapping sin revisar, con pruebas añadidas. Revalidar CI del head vigente.
+- Próximo paso P0: confirmar CI del head actual; revisar diff y fusionar solo si CI verde, sin activar worker ni tocar clientes. Después obtener evidencia DSers autorizada para 12/12 SKU, revisar cotizaciones y frete Brasil.
 
 **Nunca borrar entradas anteriores sin justificar la corrección.** Los cambios de estado necesitan evidencia GitHub o del sistema fuente; un checklist marcado manualmente no constituye PASS.
