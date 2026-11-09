@@ -181,3 +181,12 @@ F3. Solo con confirmación expresa de operación y monto: piloto real auditado.
 - Lectura de D1 GET /accounts/{account_id}/d1/database: HTTP **401**, sin permiso/credencial de producto suficiente. Lectura de Workers GET /accounts/{account_id}/workers/scripts: HTTP **403**. **NO** afirmar que no existen bases ni workers: simplemente no se pudieron listar.
 - **Bloqueo adicional Fase D:** para diseñar/deployar D1 o Workers debe habilitarse una conexión con permisos mínimos explícitos y confirmar cuotas gratuitas de la cuenta. No pedir tokens en el chat; usar OAuth/permiso del conector.
 - Mientras tanto Render worker debe permanecer deshabilitado. La primera prioridad comercial sigue siendo la conexión DSers autorizada y su evidencia 12/12.
+
+### 2026-11-08 — evaluación externa MCP SpotPeaks / HGR
+
+- Hallazgo: la página suministrada `mcpservers.org/es/servers/spotpeaks-com-claude` corresponde a SpotPeaks, pero el comando `npx add-mcp 'https://mcp.hustlegotreal.com/'` corresponde a **Hustle Got Real**; dos proveedores distintos, con datos, credenciales y endpoints diferentes.
+- Investigación detallada, precios, roles, fuentes oficiales, riesgos de 170 herramientas HGR y reutilización sin costo documentados en [docs/MCP-SPOTPEAKS-HGR-EVALUACION.md](MCP-SPOTPEAKS-HGR-EVALUACION.md).
+- SpotPeaks: MCP de investigación principalmente de mercado **EE. UU.**, catálogo de pago; herramientas gratuitas públicas útiles, pero sus costos NO prueban margen Brasil.
+- HGR: proveedor declara WooCommerce y AliExpress, operaciones de stock, precios/pedidos, y un MCP OAuth. Planes de suscripción pagados desde £29/mes. No es DSers MCP ni una conexión gratuita a la cuenta DSers. Un estudio independiente enumera ~170 tools, incluyendo cambios comerciales: **no conectar a producción sin permisos mínimos verificables**.
+- Decisión ingeniería (presupuesto USD 0): **NO INSTALAR, NO CONTRATAR, NO HACER LOGIN OAUTH, NO CAMBIAR DSers/Woo**. Reutilizar procesos de research, márgenes, CAC/ROAS y monitoreo como patrones de nuestro auditor.
+- No altera la prioridad P0: validación DSers real 12/12 SKU, cotizaciones Brasil, flete, margen documentado y viabilidad comercial. Si se investiga HGR, usar únicamente documentación pública y entorno aislado.
