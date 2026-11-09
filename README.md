@@ -1,6 +1,10 @@
 # DROPERAGENT — Commerce Operations (em desenvolvimento)
 
-**Estado auditado em 2026-11-08:** site público e backend HTTPS em funcionamento, WordPress/WooCommerce conectado, plataforma de dropshipping autônoma **NÃO concluída**. Não há autorização de compras automáticas nem meio de pagamento habilitado.
+> **PONTO ÚNICO DE CONTINUIDADE:** [DROPERAGENT SUPREME V4 — plano mestre e bitácora](docs/DROPERAGENT-SUPREME-MASTER.md). Toda vez que o usuário disser **“seguir”**, ler a versão atual desse documento, confrontar main/PRs/CI/integrações reais, executar a próxima tarefa não sobreposta e atualizar a bitácora. Contrato de evidência: [DSers Supplier Evidence](docs/DSERS-SUPPLIER-EVIDENCE-CONTRACT.md).
+
+> **Aviso de estado (08 nov 2026):** WooCommerce já mostra 2 produtos variáveis e 12 variantes; 3 gateways estão habilitados no cadastro, mas nenhuma transação/repasse real foi comprovado. DSers LIVE permanece NÃO VERIFICADO. A execução V4 segue em PR isolado; não confundir PR criado com implementação em produção.
+
+**Estado auditado em 2026-11-08:** site público e backend HTTPS em funcionamento, WordPress/WooCommerce conectado, plataforma de dropshipping autônoma **NÃO concluída**. Não há autorização de compras automáticas nem pagamento real/liquidação comprovados.
 
 - **Painel:** https://sebastisnzoth.github.io/droperagent/
 - **API real:** https://droperagent-api.onrender.com
@@ -16,13 +20,13 @@
 - CORS: navegador permitido somente a partir de `https://sebastisnzoth.github.io`; origem externa recusada com 403.
 - WooCommerce REST: `/health/woocommerce` registrou `configured:true,connected:true` via consulta autenticada de somente leitura.
 - A API impede acesso não autenticado a catálogo, pedidos e análise comercial (401).
-- A conta WordPress conectada via MCP confirmou WooCommerce ativo; na auditoria, 0 produtos e 0 pedidos reais.
+- A conta WordPress conectada via MCP confirmou WooCommerce ativo e, em auditoria posterior de 08/11/2026, 2 produtos variáveis publicados (12 variantes). Não foi validado o estado atual dos pedidos reais.
 
 ## Ainda pendente / não comprovado
 
 - Login com senha real, sessão válida/expiração/logout e leitura privada do painel **não foram provados ponta a ponta no ambiente de produção por esse smoke**. Testes isolados da API e Playwright com mocks não substituem essa verificação.
 - DSers e AliExpress: sem prova de chamada autorizada a API/conta real neste backend; variantes, custo de frete e sourcing não validados.
-- Pagamentos: nenhuma forma de cobrança habilitada na configuração WooCommerce observada; não há cobrança/repasse testados.
+- Pagamentos: dLocal Go, Rede Pix e WP28 Pix aparecem habilitados em WooCommerce, mas onboarding, checkout, cobrança e liquidação reais permanecem NÃO VERIFICADOS.
 - Operação 24/7: serviço Render Free pode adormecer; worker comercial desabilitado para não usar disco efêmero. Não existe fila comercial transacional durável verificada.
 - Marketing Meta e OpenClaw: fluxos reais com contas autorizadas não verificados.
 - Frete e fiscalidade no Brasil: não habilitar checkout comercial sem revisão da configuração real e testes.
@@ -39,10 +43,11 @@
 
 ## Módulos e propriedade do trabalho em paralelo
 
-- PR #18: auditoria de variantes DSers; PR #20: Mapping Guard — revisar interseções antes do merge.
-- PR #19: políticas de autonomia e skills de sourcing/Meta — não concede pagamentos automaticamente.
-- PR #22: auditoria WooCommerce Blueprint — sem SQL, sem alterações fiscais.
-- PR #23: gating da conexão LIVE do frontend — não sobrescrever seus arquivos.
+- PR #18: auditoria de variantes DSers (aberto, draft). PR #20: Mapping Guard (fusionado, reutilizar).
+- PR #19: políticas de autonomia e skills de sourcing/Meta (aberto, draft).
+- PR #13: documentação DSers/InfinityFree (aberto).
+- PR #22: auditoria WooCommerce Blueprint (fusionado; sem SQL).
+- PR #23: gating da conexão LIVE do frontend (fusionado; não desativar verificações).
 - P0 smoke: este documento e `scripts/live-public-smoke.mjs`, independente de tais PRs.
 
 **Não declarar COMMERCE PASS apenas com HTTP 200, endpoint /health ou smoke de loja.**
