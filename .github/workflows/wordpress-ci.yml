@@ -60,6 +60,27 @@ jobs:
           if (!is_string($sealed) || $sealed===$plain || substr($sealed,0,3)!=="v1:") throw new Exception("Encryption failed");
           $cls::store("key", $plain);
           if ($cls::open("key")!==$plain) throw new Exception("Encryption roundtrip failed");
+          $ae_key="1234567890";
+          $ae_secret="ae_test_secret_never_real_01234567890";
+          if (!$cls::ae_store("app_key",$ae_key) || !$cls::ae_store("app_secret",$ae_secret))
+            throw new Exception("AliExpress encryption failed");
+          if ($cls::ae_open("app_key")!==$ae_key || $cls::ae_open("app_secret")!==$ae_secret)
+            throw new Exception("AliExpress decrypt mismatch");
+          if ($cls::ae_open("invalid_field")!==false)
+            throw new Exception("Unexpected AliExpress field accepted");
+          if ($cls::open("key")!==$plain) throw new Exception("CJ key changed during AliExpress save");
+          if (in_array("droper_api_ae_app_secret",array_keys(wp_load_alloptions()),true))
+            throw new Exception("AliExpress secret autoloaded");
+          $callback=$cls::ae_callback_url();
+          if (strpos($callback,"https://")!==0 || strpos($callback,"action=droper_api_ae_callback")===false)
+            throw new Exception("AliExpress OAuth callback invalid");
+          $cls::ae_revoke_tokens();
+          if ($cls::ae_open("app_secret")!==$ae_secret)
+            throw new Exception("AliExpress token revocation deleted app credentials");
+          foreach(array("app_key","app_secret") as $field)delete_option("droper_api_ae_".$field);
+          if ($cls::ae_open("app_key")!==false)throw new Exception("AliExpress credential deletion failed");
+          if ($cls::open("key")!==$plain)throw new Exception("CJ lost after AliExpress revoke");
+
           if (in_array("droper_api_cj_key", array_keys(wp_load_alloptions()),true)) throw new Exception("Secret was autoloaded");
           if (!$cls::key()) throw new Exception("Sodium unavailable");
           $cls::clear();
@@ -69,7 +90,7 @@ jobs:
           $user=get_user_by("login","ci_admin");
           wp_set_current_user($user->ID);
           if (!current_user_can("manage_options")) throw new Exception("Admin permission missing");
-          echo "DROPERAGENT Connections admin, encrypted storage, cleanup and role gate PASS\n";
+          echo "DROPERAGENT Connections CJ+AliExpress encryption, isolation, callback and roles PASS\n";
           ' --allow-root
       - name: Create and reread a real WooCommerce product via database
         run: |
