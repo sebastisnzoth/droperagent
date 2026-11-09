@@ -45,10 +45,10 @@ La exigencia “sin restricciones” significa **independencia técnica y máxim
 - Bridge WordPress activo (plugin DroperAgent Bridge 0.2.1) y API con protecciones, pero no equivale a cola durable ni DSers vivo.
 - Documentación DSers oficial publicada en repositorios GitHub: skill de análisis sin conexión, MCP alojado mediante OAuth con requisitos comerciales.
 
-### EN CURSO — este incremento
-- Rama: feat/supreme-v4-supplier-evidence
+### HECHO VERIFICADO — incremento V4 (2026-11-09 UTC)
+- Rama implementada: feat/supreme-v4-supplier-evidence (PR #28 fusionado en main).
 - Alcance exclusivo: este plan maestro; contrato de datos de cotizaciones; auditor puro de evidencia de costos/flete/rentabilidad reutilizando Mapping Guard #20; pruebas; endpoint autenticado de solo lectura si pasa CI.
-- Estado de entrega: **PR #28 ABIERTO**: https://github.com/sebastisnzoth/droperagent/pull/28 (draft, no fusionado hasta CI/revisión). Primer head sometido a CI: e5c4064ae9c636f7d019aebac83ece10cd419f73; Core Tests PASS https://github.com/sebastisnzoth/droperagent/actions/runs/42548730567 ; WP/Woo Sandbox PASS https://github.com/sebastisnzoth/droperagent/actions/runs/42548730504 . Tras endurecer cálculo y actualizar tests se requiere CI nuevo en el head actual.
+- Estado de entrega: **PR #28 FUSIONADO**: https://github.com/sebastisnzoth/droperagent/pull/28 ; commit main 76ebc412369e510db5c43a40dc6a54052dc8729b (squash). Último head PR c34ca451229394212b32ad6dd14c1669b64bc805. CI último: Core Tests PASS (48 unitarias + HTTP/MCP) https://github.com/sebastisnzoth/droperagent/actions/runs/42548981050 ; WordPress/WooCommerce Sandbox PASS https://github.com/sebastisnzoth/droperagent/actions/runs/42548981052 . Este CI acredita código/sandbox, **no** conexión LIVE de DSers ni pago real.
 - No tocar productos WooCommerce, pagos, inventario, credenciales ni fuentes DSers.
 
 ### PENDIENTE / BLOQUEADO
@@ -78,7 +78,7 @@ La exigencia “sin restricciones” significa **independencia técnica y máxim
 
 ## 4. Fases ejecutables, criterios de aceptación y secuencia
 
-### Fase A — Control de proyecto y documentación [EN CURSO]
+### Fase A — Control de proyecto y documentación [HECHO VERIFICADO PARA ESTE INCREMENTO]
 A1. Crear este plan maestro y contrato de evidencia; vincularlo desde README.
 A2. Crear rama y PR independientes; ejecutar pruebas locales y CI.
 A3. Actualizar tabla de avances y próximo paso luego de cada ejecución.
@@ -138,8 +138,8 @@ F3. Solo con confirmación expresa de operación y monto: piloto real auditado.
 
 - [x] Existe infraestructura de código del Mapping Guard en main.
 - [x] Se documentó la existencia y limitaciones del DSers MCP oficial.
-- [ ] Plan maestro en main (ya está creado, vinculado desde README de PR #28; pendiente merge).
-- [ ] Contrato de cotizaciones, tests y endpoint read-only en main (ya implementado en PR #28; pendiente merge).
+- [x] Plan maestro en main accesible y vinculado desde README (PR #28 fusionado).
+- [x] Contrato de cotizaciones, tests y endpoint read-only en main (CI sandbox PASS; despliegue LIVE separado y aún por comprobar).
 - [ ] DSers conectado / mapping real verificado para 12 SKU.
 - [ ] Stock, costos, flete y margen confirmados SKU por SKU.
 - [ ] Revisión de riesgo legal/logístico completada.
@@ -159,3 +159,8 @@ F3. Solo con confirmación expresa de operación y monto: piloto real auditado.
 - Próximo paso P0: confirmar CI del head actual; revisar diff y fusionar solo si CI verde, sin activar worker ni tocar clientes. Después obtener evidencia DSers autorizada para 12/12 SKU, revisar cotizaciones y frete Brasil.
 
 **Nunca borrar entradas anteriores sin justificar la corrección.** Los cambios de estado necesitan evidencia GitHub o del sistema fuente; un checklist marcado manualmente no constituye PASS.
+
+### 2026-11-09 UTC — checkpoint posterior a PR #28
+- PR #28 fusionado mediante squash (commit 76ebc412369e510db5c43a40dc6a54052dc8729b); main contiene el maestro, contrato, auditor, endpoint autenticado y pruebas.
+- Core Tests CI PASS, 48 unitarias y pruebas adicionales de seguridad HTTP; WP/Woo sandbox PASS. No se realizaron operaciones monetarias ni cambios en WooCommerce.
+- Siguiente P0: confirmar despliegue de Render y conducta no autenticada de la nueva ruta; después conexión DSers autorizada y evidencia 12/12. No marcar COMMERCE PASS.
