@@ -33,8 +33,10 @@
 | WooCommerce shipping | `shipping.enabled=true` | Habilitado a nivel de tienda |
 | Zonas | Solo zona `id=0` (resto de localidades) | **No hay zona Brasil explícita** |
 | Métodos disponibles | 0 en la única zona | **Sin cotización de flete al checkout** |
-| Cálculo de tributos Woo | `tax.enabled=false` | Revisión fiscal necesaria |
+| Cálculo de tributos Woo | Primera lectura: `tax.enabled=false`; dos lecturas finales: `tax.enabled=true` | **Lecturas divergentes; no se alteró la configuración en este incremento, revisar historial y fiscalidad** |
 | Certificaciones | No hay documentos técnicos adjuntos en esta lectura | No verificado |
+
+**Nota de seguimiento de impuestos:** al terminar el despliegue de la auditoría, OneMCP reportó `tax.enabled=true` en dos consultas consecutivas. Al comienzo del turno reportó `tax.enabled=false`. No se observó ni se ejecutó escritura de ajustes fiscales en la implementación de solo lectura; no asumir causa ni fijar el flag sin información fiscal verificada.
 
 **Efecto esperado:** WooCommerce, al no tener un método de envío para la región del comprador, indica que el envío no está disponible en el carrito/checkout de productos físicos. No hay una tarifa real que pudiera agregarse sin inventarla.
 
