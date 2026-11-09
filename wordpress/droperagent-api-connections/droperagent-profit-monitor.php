@@ -46,10 +46,54 @@ final class DroperAgent_Profit_Monitor {
         }
         return array('kind' => 'current_manual', 'margin_cents' => $price - $total);
     }
+    /**
+     * CVE-2026-74019: Patchstack identified broken access control in
+     * EPROLO-Dropshipping <= 2.4.2. Treat any newer version as UNREVIEWED
+     * until the vendor or advisory explicitly confirms a fix.
+     * This is a warning only. No plugin activation, deactivation or HTTP calls.
+     */
+    static function eprolo_security_state($installed, $active, $version) {
+        if (!$installed) return 'not_installed';
+        if (!$active) return 'inactive_mitigated';
+        if (!is_string($version) || !preg_match('/^\d+\.\d+(?:\.\d+)?$/D', $version))
+            return 'active_unknown_version';
+        if (version_compare($version, '2.4.2', '<=')) return 'active_affected_version';
+        return 'active_new_version_unreviewed';
+    }
+    static function eprolo_security_snapshot() {
+        $relative = 'eprolo-dropshipping/eprolo.php';
+        $file = defined('WP_PLUGIN_DIR') ? WP_PLUGIN_DIR . '/' . $relative : '';
+        $installed = ($file !== '' && is_file($file));
+        $active = in_array($relative, (array) get_option('active_plugins', array()), true);
+        if (is_multisite()) {
+            $network = get_site_option('active_sitewide_plugins', array());
+            if (is_array($network) && isset($network[$relative])) $active = true;
+        }
+        $version = '';
+        if ($installed && function_exists('get_file_data')) {
+            $header = get_file_data($file, array('Version' => 'Version'), 'plugin');
+            $version = is_array($header) && is_string($header['Version'] ?? null)
+                ? trim($header['Version']) : '';
+        }
+        $state = self::eprolo_security_state($installed, $active, $version);
+        return array(
+            'plugin' => 'eprolo-dropshipping', 'version' => $version,
+            'active' => (bool) $active,
+            'risk_state' => $state,
+            'attention' => in_array($state, array('active_affected_version',
+                'active_unknown_version', 'active_new_version_unreviewed'), true),
+            'advisory_id' => 'CVE-2026-74019',
+            'advisory_url' => 'https://patchstack.com/database/wordpress/plugin/eprolo-dropshipping/vulnerability/wordpress-eprolo-dropshipping-plugin-2-4-2-broken-access-control-vulnerability',
+            'supplier_connection_verified' => false,
+            'safe_to_sync_orders' => false,
+        );
+    }
+
     static function snapshot() {
         $r = array(
             'schema' => 1, 'generated_at_utc' => gmdate('c'),
             'catalog_available' => false, 'product_count' => 0, 'sku_count' => 0,
+            'eprolo_security' => self::eprolo_security_snapshot(),
             'truncated' => false, 'missing_sku' => 0, 'duplicate_sku' => 0,
             'low_woo_stock' => 0, 'stock_not_managed' => 0,
             'missing_weight_or_dimensions' => 0,
@@ -153,11 +197,28 @@ final class DroperAgent_Profit_Monitor {
     static function page() {
         if (!current_user_can('manage_options')) wp_die('Sem permissão.', '', 403);
         $r = get_option(self::OPTION, false);
+        $ep = self::eprolo_security_snapshot();
         ?>
         <div class="wrap">
             <h1>DROPERAGENT — Autonomous Profit Monitor</h1>
             <p>Monitor autônomo de risco comercial, <strong>somente leitura</strong>.
               Nenhuma venda ou lucro é certificado por este relatório; estoque e cotações são valores internos do WooCommerce.</p>
+            <section style="max-width:850px;padding:12px 16px;border-left:4px solid <?php echo $ep['attention'] ? '#b32d2e' : '#777'; ?>;background:#fff;margin:16px 0">
+                <h2>Segurança do fornecedor EPROLO</h2>
+                <p><strong>Plugin:</strong> <?php echo esc_html($ep['active'] ? 'ativo' : 'inativo'); ?>;
+                <strong>versão instalada:</strong> <?php echo esc_html($ep['version'] === '' ? 'não identificada' : $ep['version']); ?>;
+                <strong>avaliação:</strong> <?php echo esc_html($ep['risk_state']); ?>.</p>
+                <?php if ($ep['attention']) : ?>
+                    <p><strong>ATENÇÃO:</strong> existe um alerta de controle de acesso que afeta o EPROLO até 2.4.2.
+                    Uma versão nova requer confirmação da correção. Recomenda-se manter o plugin desativado
+                    até que uma versão corrigida seja confirmada e testada em ambiente isolado.</p>
+                <?php else : ?>
+                    <p>Não há plugin EPROLO afetado ativo nesta leitura. Isso não confirma nenhuma conexão,
+                    disponibilidade de estoque ou autorização para sincronizar pedidos.</p>
+                <?php endif; ?>
+                <p><a href="<?php echo esc_url($ep['advisory_url']); ?>" target="_blank" rel="noopener noreferrer">Ver aviso CVE-2026-74019 (Patchstack)</a>.
+                Nenhuma configuração, credencial ou pedido foi alterado por esta verificação.</p>
+            </section>
             <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post">
                 <input type="hidden" name="action" value="droper_profit_monitor_run">
                 <?php wp_nonce_field('droper_profit_monitor_run'); ?>
