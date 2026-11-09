@@ -174,3 +174,10 @@ F3. Solo con confirmación expresa de operación y monto: piloto real auditado.
 - DSers y proveedores: aún SIN ACCESO LIVE; el PRE-FLIGHT no prueba precios ni stock reales. Pagos y compras continúan deshabilitados desde DROPERAGENT.
 - Próxima tarea verificable cuando se diga “seguir”: leer esta bitácora; consultar GitHub main y PRs vigentes, comprobar despliegue actual y buscar vía autorización oficial DSers el estado Website/Authorization/Connection, mapeos y cotizaciones reales. Si no hay conexión DSers, no inventar datos ni confundir Basic con MCP.
 - Nota de infraestructura: el plan Cloudflare D1 Free tiene límites diarios de filas leídas/escritas que desde 2026-09-01 causan errores al superarse; diseñar cola durable dentro de cuotas y sin comprometer operaciones financieras. Fuente https://developers.cloudflare.com/changelog/post/2026-09-01-d1-free-tier-limit-enforcement/ .
+
+### 2026-11-09 UTC — infraestructura Cloudflare: descubrimiento solo lectura
+
+- Cuenta Cloudflare vinculada a este chat: whoami OK; GET /accounts OK (una cuenta estándar). No se revelaron claves ni se crearon recursos.
+- Lectura de D1 GET /accounts/{account_id}/d1/database: HTTP **401**, sin permiso/credencial de producto suficiente. Lectura de Workers GET /accounts/{account_id}/workers/scripts: HTTP **403**. **NO** afirmar que no existen bases ni workers: simplemente no se pudieron listar.
+- **Bloqueo adicional Fase D:** para diseñar/deployar D1 o Workers debe habilitarse una conexión con permisos mínimos explícitos y confirmar cuotas gratuitas de la cuenta. No pedir tokens en el chat; usar OAuth/permiso del conector.
+- Mientras tanto Render worker debe permanecer deshabilitado. La primera prioridad comercial sigue siendo la conexión DSers autorizada y su evidencia 12/12.
