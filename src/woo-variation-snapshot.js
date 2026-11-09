@@ -21,14 +21,15 @@ function normalizeVariation(row, productId) {
   if (sku === null || price === null || !Array.isArray(row.attributes) || row.attributes.length > 20) {
     throw new TypeError('Invalid WooCommerce variation payload');
   }
-  const options = {};
+  const options = Object.create(null);
   for (const a of row.attributes) {
     if (!a || typeof a !== 'object' || Array.isArray(a) ||
         !safeText(a.name, 90) || !safeText(a.option, 140)) {
       throw new TypeError('Invalid WooCommerce variation attribute');
     }
     const key = a.name.trim();
-    if (!key || Object.prototype.hasOwnProperty.call(options, key)) {
+    if (!key || ['__proto__', 'prototype', 'constructor'].includes(key.toLowerCase()) ||
+        Object.prototype.hasOwnProperty.call(options, key)) {
       throw new TypeError('Duplicate or missing WooCommerce variation attribute');
     }
     options[key] = a.option;
