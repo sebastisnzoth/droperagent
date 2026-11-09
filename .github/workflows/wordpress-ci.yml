@@ -46,6 +46,31 @@ jobs:
           docker compose run --rm --user 0 --entrypoint wp wpcli plugin install woocommerce --activate --allow-root
           docker compose run --rm --user 0 --entrypoint wp wpcli plugin is-active woocommerce --allow-root
           docker compose exec -T -u root wordpress chown -R www-data:www-data /var/www/html/wp-content
+      - name: Validate DROPERAGENT API Connections admin plugin, encryption and role access
+        run: |
+          docker compose exec -T -u root wordpress mkdir -p /var/www/html/wp-content/plugins/droperagent-api-connections
+          docker compose cp wordpress/droperagent-api-connections/droperagent-api-connections.php wordpress:/var/www/html/wp-content/plugins/droperagent-api-connections/droperagent-api-connections.php
+          docker compose exec -T wordpress php -l /var/www/html/wp-content/plugins/droperagent-api-connections/droperagent-api-connections.php
+          docker compose run --rm --user 0 --entrypoint wp wpcli plugin activate droperagent-api-connections --allow-root
+          docker compose run --rm --user 0 --entrypoint wp wpcli eval '
+          if (!class_exists("DroperAgent_API_Connections")) throw new Exception("Missing API Connections class");
+          $cls="DroperAgent_API_Connections";
+          $plain="cj_test_demo_only_nothing_real_01234567";
+          $sealed=$cls::seal($plain);
+          if (!is_string($sealed) || $sealed===$plain || substr($sealed,0,3)!=="v1:") throw new Exception("Encryption failed");
+          $cls::store("key", $plain);
+          if ($cls::open("key")!==$plain) throw new Exception("Encryption roundtrip failed");
+          if (in_array("droper_api_cj_key", array_keys(wp_load_alloptions()),true)) throw new Exception("Secret was autoloaded");
+          if (!$cls::key()) throw new Exception("Sodium unavailable");
+          $cls::clear();
+          if ($cls::open("key")!==false) throw new Exception("Credential deletion failed");
+          wp_set_current_user(0);
+          if (current_user_can("manage_options")) throw new Exception("Anon permission bypass");
+          $user=get_user_by("login","ci_admin");
+          wp_set_current_user($user->ID);
+          if (!current_user_can("manage_options")) throw new Exception("Admin permission missing");
+          echo "DROPERAGENT Connections admin, encrypted storage, cleanup and role gate PASS\n";
+          ' --allow-root
       - name: Create and reread a real WooCommerce product via database
         run: |
           docker compose run --rm --user 0 --entrypoint wp wpcli eval '
