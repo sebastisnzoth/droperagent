@@ -373,6 +373,27 @@ jobs:
           if ($cls::quote_assessment($vid,$sku,"6.44")["kind"]!=="stale")
             throw new Exception("Expired manual quote was not detected");
           delete_option($key);
+          // CVE-2026-74019: only an inactive plugin is currently mitigated.
+          if ($cls::eprolo_security_state(true,true,"2.4.2")!=="active_affected_version" ||
+              $cls::eprolo_security_state(true,true,"2.4.1")!=="active_affected_version" ||
+              $cls::eprolo_security_state(true,true,"")!=="active_unknown_version" ||
+              $cls::eprolo_security_state(true,true,"2.4.3")!=="active_new_version_unreviewed" ||
+              $cls::eprolo_security_state(true,false,"2.4.2")!=="inactive_mitigated" ||
+              $cls::eprolo_security_state(false,false,"")!=="not_installed") {
+            throw new Exception("EPROLO advisory fail-closed version policy incorrect");
+          }
+          $ep = $cls::eprolo_security_snapshot();
+          if (!is_array($ep) || ($ep["advisory_id"] ?? "")!=="CVE-2026-74019" ||
+              !empty($ep["safe_to_sync_orders"]) || !empty($ep["supplier_connection_verified"])) {
+            throw new Exception("Supplier security guard falsely authorizes EPROLO integration");
+          }
+          $report=$cls::run();
+          if (!isset($report["eprolo_security"]) ||
+              $report["eprolo_security"]["advisory_id"] !== "CVE-2026-74019" ||
+              !empty($report["eprolo_security"]["safe_to_sync_orders"])) {
+            throw new Exception("Autonomous monitor did not persist supplier CVE status");
+          }
+          echo "DROPERAGENT EPROLO CVE-2026-74019 read-only watch PASS\n";
           echo "DROPERAGENT autonomous daily read-only profit risk monitor PASS\n";
           ' --allow-root
       - name: Create and reread a real WooCommerce product via database
