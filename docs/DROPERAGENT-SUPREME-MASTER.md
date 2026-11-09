@@ -84,7 +84,7 @@ A2. Crear rama y PR independientes; ejecutar pruebas locales y CI.
 A3. Actualizar tabla de avances y próximo paso luego de cada ejecución.
 **PASS:** PR verificable con documentos y suite, sin intersecciones no justificadas.
 
-### Fase B — Evidencia DSers/WooCommerce [PENDIENTE]
+### Fase B — Evidencia DSers/WooCommerce [BLOQUEADA: faltan acceso autorizado y datos de proveedor]
 B1. Confirmar conexión real tienda/canal desde DSers y proveedor autorizado; sin copiar tokens.
 B2. Obtener datos no secretos por exportación oficial o comprobantes revisados; fuente/fecha/país/moneda por SKU.
 B3. Alimentar guard #20 y auditor de costos; bloquear variantes sin evidencia.
@@ -139,8 +139,8 @@ F3. Solo con confirmación expresa de operación y monto: piloto real auditado.
 - [x] Existe infraestructura de código del Mapping Guard en main.
 - [x] Se documentó la existencia y limitaciones del DSers MCP oficial.
 - [x] Plan maestro en main accesible y vinculado desde README (PR #28 fusionado).
-- [x] Contrato de cotizaciones, tests y endpoint read-only en main; CI sandbox PASS y Render reporta deploy LIVE del commit main. Prueba HTTP externa de la ruta todavía NO VERIFICADA.
-- [ ] DSers conectado / mapping real verificado para 12 SKU.
+- [x] Contrato de cotizaciones y endpoint read-only en main; CI y Render deploy LIVE verificados, con prueba HTTP externa de POST sin sesión = 401 y cabecera no-store.
+- [ ] DSers conectado / mapping real verificado para 12 SKU (no existe sesión DSers autenticada en este chat ni datos oficiales de su cuenta).
 - [ ] Stock, costos, flete y margen confirmados SKU por SKU.
 - [ ] Revisión de riesgo legal/logístico completada.
 - [ ] Cola durable e idempotencia probadas.
@@ -156,7 +156,7 @@ F3. Solo con confirmación expresa de operación y monto: piloto real auditado.
 - Se eligió complementar el guard con evaluación de cotización por SKU / BRL / Brasil y bloqueo por evidencia incompleta.
 - Implementado src/supplier-evidence-audit.js, endpoint administrativo de preflight (sin llamadas DSers ni escrituras), docs/DSERS-SUPPLIER-EVIDENCE-CONTRACT.md, tests unitarios/HTTP y CI en PR #28.
 - Resultado inicial de CI: Core y WordPress Sandbox PASS (runs enlazados arriba). Endurecimiento posterior: no publicar margen si cotización stale/moneda incorrecta/mapping sin revisar, con pruebas añadidas. Revalidar CI del head vigente.
-- Próximo paso P0: comprobar por HTTP que la nueva ruta rechaza solicitudes sin sesión (401) y que /health responde. Luego verificar vinculación DSers–WooCommerce por canal autorizado, obtener cotizaciones por SKU con envío Brasil y evaluar con el preflight. Sin efectuar compras ni pagos.
+- Próximo paso P0: verificar en DSers (sesión oficial) vinculación real de droperagent.cu.ma — Website, Authorization y Connection/webhook —; obtener cotizaciones/proveedores y envío Brasil para 12 SKU; ejecutar preflight con evidencias reales. Sin comprar ni pagar.
 
 **Nunca borrar entradas anteriores sin justificar la corrección.** Los cambios de estado necesitan evidencia GitHub o del sistema fuente; un checklist marcado manualmente no constituye PASS.
 
@@ -164,4 +164,13 @@ F3. Solo con confirmación expresa de operación y monto: piloto real auditado.
 - PR #28 fusionado mediante squash (commit 76ebc412369e510db5c43a40dc6a54052dc8729b); main contiene el maestro, contrato, auditor, endpoint autenticado y pruebas.
 - Core Tests CI PASS, 48 unitarias y pruebas adicionales de seguridad HTTP; WP/Woo sandbox PASS. No se realizaron operaciones monetarias ni cambios en WooCommerce.
 - Render verificado desde cuenta conectada: servicio srv-dbnui3rrjlhs739tv880, deploy dep-dboim3vavr4c73bgil30, estado LIVE, commit 76bdb5bd1a41ed82780f2fbccd14d246524bd3d1, completado 2026-11-09T02:08:52Z. No prueba HTTP autenticado ni datos DSers. Consulta web pública /health desde esta sesión fue inaccesible; mantener estado HTTP EXTERNO DESCONOCIDO.
-- Siguiente P0: validar HTTP real del endpoint protegido; luego DSers conexión oficial y evidencia de costos/flete/variantes 12/12. No marcar COMMERCE PASS.
+- Siguiente P0: DSers conexión oficial y evidencia de costos/flete/variantes 12/12. No marcar COMMERCE PASS.
+
+### 2026-11-09 UTC — control HTTP de producción y PR #29
+
+- PR #29 fusionado a main con squash commit 4183e3e2db208acbacbebf2cae7df0853977a189; modifica únicamente scripts/live-public-smoke.mjs agregando protección del nuevo endpoint.
+- GitHub Actions external LIVE smoke 10/10 PASS: https://github.com/sebastisnzoth/droperagent/actions/runs/42549562426 . Runner externo comprobó /health status 200 e identidad, WooCommerce health conectado, CORS, 401 de rutas protegidas y **POST /api/automation/supplier-evidence-preflight sin sesión = 401**, además de GitHub Pages y bundles.
+- Core Tests PASS: https://github.com/sebastisnzoth/droperagent/actions/runs/42549562437 ; WordPress + WooCommerce Sandbox PASS: https://github.com/sebastisnzoth/droperagent/actions/runs/42549562388 .
+- DSers y proveedores: aún SIN ACCESO LIVE; el PRE-FLIGHT no prueba precios ni stock reales. Pagos y compras continúan deshabilitados desde DROPERAGENT.
+- Próxima tarea verificable cuando se diga “seguir”: leer esta bitácora; consultar GitHub main y PRs vigentes, comprobar despliegue actual y buscar vía autorización oficial DSers el estado Website/Authorization/Connection, mapeos y cotizaciones reales. Si no hay conexión DSers, no inventar datos ni confundir Basic con MCP.
+- Nota de infraestructura: el plan Cloudflare D1 Free tiene límites diarios de filas leídas/escritas que desde 2026-09-01 causan errores al superarse; diseñar cola durable dentro de cuotas y sin comprometer operaciones financieras. Fuente https://developers.cloudflare.com/changelog/post/2026-09-01-d1-free-tier-limit-enforcement/ .
