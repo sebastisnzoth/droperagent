@@ -1,0 +1,26 @@
+name: DroperAgent PIX Ledger (no live money)
+on:
+  pull_request:
+    paths:
+      - 'integrations/woocommerce/droperagent-pix-ledger/**'
+      - 'tests/droperagent-pix-calculator.test.php'
+      - '.github/workflows/droperagent-pix-ledger.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'integrations/woocommerce/droperagent-pix-ledger/**'
+      - 'tests/droperagent-pix-calculator.test.php'
+      - '.github/workflows/droperagent-pix-ledger.yml'
+permissions:
+  contents: read
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint source
+        run: |
+          php -l integrations/woocommerce/droperagent-pix-ledger/droperagent-pix-ledger.php
+          php -l integrations/woocommerce/droperagent-pix-ledger/includes/calculator.php
+      - name: Test accounting without WordPress or money
+        run: php tests/droperagent-pix-calculator.test.php
