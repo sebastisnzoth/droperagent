@@ -582,7 +582,8 @@ final class DroperAgent_API_Connections {
         $record['destination_cep'] = $cep; // Quote applies ONLY to this BR destination.
         $record['origin_country'] = $origin;
         $record['quoted_date'] = $date;
-        $record['timestamp'] = time();
+        $record['timestamp'] = $date_parsed->getTimestamp(); // quote DATE, not the save time
+        $record['recorded_at'] = time();
         $record['recorded_by'] = get_current_user_id();
         $record['evidence_status'] = 'operator_entry_not_independently_verified';
         $name = self::cost_option_name($vid);
