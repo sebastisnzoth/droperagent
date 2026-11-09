@@ -190,3 +190,12 @@ F3. Solo con confirmación expresa de operación y monto: piloto real auditado.
 - HGR: proveedor declara WooCommerce y AliExpress, operaciones de stock, precios/pedidos, y un MCP OAuth. Planes de suscripción pagados desde £29/mes. No es DSers MCP ni una conexión gratuita a la cuenta DSers. Un estudio independiente enumera ~170 tools, incluyendo cambios comerciales: **no conectar a producción sin permisos mínimos verificables**.
 - Decisión ingeniería (presupuesto USD 0): **NO INSTALAR, NO CONTRATAR, NO HACER LOGIN OAUTH, NO CAMBIAR DSers/Woo**. Reutilizar procesos de research, márgenes, CAC/ROAS y monitoreo como patrones de nuestro auditor.
 - No altera la prioridad P0: validación DSers real 12/12 SKU, cotizaciones Brasil, flete, margen documentado y viabilidad comercial. Si se investiga HGR, usar únicamente documentación pública y entorno aislado.
+
+### 2026-11-08 (seguimiento V4) — puente read-only WooCommerce SKU/variantes
+
+- Tras leer main y PRs abiertos: #13 documentación DSers, #18 auditoría de mapeo (draft), #19 autonomía (draft), #26 pagos (docs), #1 contrato (docs) siguen abiertos; #20 Mapping Guard, #28 auditor de costos, #29 smoke y #30 investigación MCP fusionados. **No solapar** con #18/#19.
+- Conector DSers no disponible desde el chat: búsqueda de complementos DSers sin resultado, WordPress MCP no ofrece habilidad DSers/webhook de conexión; estado DSers LIVE sigue **NO VERIFICADO**.
+- Verificación por OneMCP: WooCommerce #46 = 11 variantes y #85 = 1 variante. #62 SKU con `OnlyAccess` podría referir solo a accesorios; #58 registra una unidad de stock Woo, no proveedor. El repo y el código no tienen costos China/flete Brasil verificables.
+- Rama de incremento: `feat/woo-live-variation-snapshot`; nuevo adaptador **GET** WooCommerce REST `/products/:id/variations`, endpoint protegido `GET /api/woo/products/:id/variations`, redacción y validación; tests unitarios y HTTP; sin operaciones DSers ni escrituras Woo. Alcance y límites: [docs/WOO-LIVE-VARIATIONS-READINESS.md](WOO-LIVE-VARIATIONS-READINESS.md).
+- Estado inicial de fase: **EN PR / NO EN MAIN** hasta CI y merge, actualizar aquí con SHA/run/link reales. No declarar LIVE API ni Woo authenticated read PASS sin evidencia.
+- Próximo paso P0 tras CI: comprobar despliegue Render y 401 público del endpoint; luego **único bloqueo principal**: acceso DSers vía canal oficial y correspondencias/costos/flete BR por 12 SKU.

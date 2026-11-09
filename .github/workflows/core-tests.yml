@@ -19,6 +19,7 @@ jobs:
           node --check src/task-engine.js
           node --check src/index.js
           node --check src/supplier-evidence-audit.js
+          node --check src/woo-variation-snapshot.js
           node --check src/woocommerce-client.js
           node --check src/mcp-server.mjs
           node --check worker.js
@@ -34,5 +35,7 @@ jobs:
         run: node --test tests/mapping-preflight-http.test.mjs
       - name: Supplier evidence preflight HTTP auth and no-write safety test
         run: node --test tests/supplier-evidence-preflight-http.test.mjs
+      - name: WooCommerce live variation snapshot authentication, limits and redaction
+        run: node --test tests/woo-variation-snapshot-http.test.mjs
       - name: Real MCP client-server protocol test
         run: node --test tests/mcp.test.mjs

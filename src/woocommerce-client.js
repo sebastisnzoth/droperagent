@@ -58,6 +58,17 @@ class WooCommerceClient {
     return this.request('GET', 'products/' + id);
   }
 
+  // Read-only official WooCommerce REST v3 variation collection.
+  // Pagination bounds prevent untrusted callers from triggering unbounded catalog scans.
+  listProductVariations(productId, { page = 1, perPage = 30 } = {}) {
+    if (!Number.isSafeInteger(productId) || productId < 1) throw new Error('Invalid product id');
+    if (!Number.isInteger(page) || page < 1 || page > 100) throw new Error('Invalid page');
+    if (!Number.isInteger(perPage) || perPage < 1 || perPage > 100) throw new Error('Invalid perPage');
+    return this.request('GET', 'products/' + productId + '/variations', {
+      query: { page, per_page: perPage }
+    });
+  }
+
   createDraft({ name, regularPrice, description = '' }) {
     if (typeof name !== 'string' || !name.trim() || name.length > 200) throw new Error('Invalid product name');
     if (typeof regularPrice !== 'string' || !/^\d+(\.\d{1,2})?$/.test(regularPrice)) throw new Error('Invalid regular price');
