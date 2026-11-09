@@ -49,3 +49,31 @@ Acesso CJ verificado no painel WordPress **não equivale** a produtos CJ conferi
 5. Habilitar outros fornecedores só quando API oficial e permissões de cada programa forem comprovadas.
 
 Documento maestro: [DROPERAGENT SUPREME V4](DROPERAGENT-SUPREME-MASTER.md).
+
+## AliExpress Open Platform — credenciales y OAuth (v0.2.0)
+
+AliExpress requiere una **aplicación oficial** creada en https://console.aliexpress.com/ y permisos específicos. Para sourcing, solicitar categoría **Dropshipping**; las credenciales de un app tipo seller, affiliate o Dropshipping no se pueden tratar como intercambiables. AliExpress puede revisar/aprobar la aplicación antes de permitir llamadas.
+
+Se agregó una tarjeta privada **AliExpress Open Platform — Dropshipping** con:
+
+- **App Key** y **App Secret**: ambos campos obligatorios cuando se reemplazan; almacenamiento independiente de CJ, cifrado Sodium Secretbox y `autoload=false` en las opciones `droper_api_ae_*`. Los valores nunca se muestran en la interfaz.
+- **Autorizar conta AliExpress (OAuth)**: botón opcional iniciado manualmente por administrador, usando `https://oauth.aliexpress.com/authorize` (documentación oficial de flujo seller de AliExpress, publicada anteriormente), `response_type=code`, `state` aleatorio y callback HTTPS restringido a `wp-admin/admin-post.php?action=droper_api_ae_callback`.
+- El callback acepta un solo uso, exige coincidencia de `state` ligado al administrador y caducidad 10 minutos. Si es válido, intercambia `code` directamente en el servidor contra `https://oauth.aliexpress.com/token` usando TLS; almacena únicamente access token cifrado y fecha de expiración sin publicar token. **No** emite consultas de productos, firma de peticiones de dropshipping ni pedidos.
+- Si el programa Dropshipping aprobado usa solamente App Key y App Secret para consultas firmadas y no requiere OAuth, no pulsar el botón: la autorización concreta debe confirmarse en el portal oficial. **La compatibilidad de ese flujo OAuth antiguo con la modalidad Dropshipping de esta cuenta NO está verificada.**
+- Revocar: borra solo opciones `droper_api_ae_*`, state y token AE; **no** toca la API Key CJ.
+- El estado de la UI diferencia: `Não configurado`, `Credenciais salvas — autorização pendente` y `OAuth autorizado — API de dropshipping não verificada`. Incluso con token guardado, no acredita **ninguna operación live de productos**.
+
+### Seguridad y límites
+
+El servidor WordPress guarda la App Secret cifrada; no se sincroniza con Render y no existe exportación pública. El callback nunca acepta tokens provenientes de GET ni parámetros que activen autoorden. Una autorización de AliExpress puede permitir funciones diferentes según categorías y permisos; DROPERAGENT no obtiene derechos de compra automáticamente.
+
+El uso completo requiere: inscripción en la Open Platform, aplicación Dropshipping aprobada, grupos de API autorizados, configuración del callback (si corresponde), confirmación de método de autenticación vigente, prueba **de lectura** de productos con respuesta real, y comparación de SKUs/flete Brasil. Hasta entonces: **ALIEXPRESS LIVE = NO VERIFICADO**.
+
+### Fuentes oficiales y actualización
+
+- Registro y credenciales: https://developer.alibaba.com/docs/doc.htm?articleId=120675&docType=1&treeId=727
+- Alta de app Dropshipping: https://developer.alibaba.com/docs/doc.htm?articleId=120418&docType=1&treeId=762
+- Proceso OAuth anterior (marcado bajo documentación obsoleta): https://developer.alibaba.com/docs/doc.htm?articleId=108969&docType=1&treeId=556
+- Acuerdo de uso: https://terms.alicdn.com/legal-agreement/terms/suit_bu1_aliexpress/suit_bu1_aliexpress202201220006_10755.html
+
+No usar enlaces ni códigos de autorización de ejemplos históricos. Ningún servicio pago ha sido contratado.
