@@ -292,6 +292,89 @@ jobs:
 
           echo "DROPERAGENT fail-closed Store API and Classic commerce gate PASS\n";
           ' --allow-root
+      - name: Verify autonomous read-only profit monitor with WooCommerce sandbox
+        run: |
+          docker compose cp wordpress/droperagent-api-connections/droperagent-profit-monitor.php wordpress:/var/www/html/wp-content/plugins/droperagent-api-connections/droperagent-profit-monitor.php
+          docker compose exec -T wordpress php -l /var/www/html/wp-content/plugins/droperagent-api-connections/droperagent-profit-monitor.php
+          docker compose run --rm --user 0 --entrypoint wp wpcli eval '
+          require_once WP_PLUGIN_DIR . "/droperagent-api-connections/droperagent-profit-monitor.php";
+          $cls="DroperAgent_Profit_Monitor";
+          if (!class_exists($cls) || !has_action($cls::EVENT, array($cls,"run"))) {
+            throw new Exception("Scheduled monitor not registered");
+          }
+          $cls::ensure_schedule();
+          $next = wp_next_scheduled($cls::EVENT);
+          $cls::ensure_schedule();
+          if (!$next || $next !== wp_next_scheduled($cls::EVENT)) {
+            throw new Exception("Cron event missing or duplicated");
+          }
+          $parent = new WC_Product_Variable();
+          $parent->set_name("CI Profit Monitor Parent");
+          $parent->set_status("publish");
+          $parent->set_sku("ci-profit-parent");
+          $attribute = new WC_Product_Attribute();
+          $attribute->set_name("Color");
+          $attribute->set_options(array("Black"));
+          $attribute->set_variation(true);
+          $attribute->set_visible(true);
+          $parent->set_attributes(array($attribute));
+          $parent_id=$parent->save();
+          $v = new WC_Product_Variation();
+          $v->set_parent_id($parent_id);
+          $v->set_status("publish");
+          $v->set_sku("ci-profit-variant-001");
+          $v->set_attributes(array("Color"=>"Black"));
+          $v->set_regular_price("6.44");
+          $v->set_manage_stock(true);
+          $v->set_stock_quantity(1);
+          $vid=$v->save();
+          $sku=(string) $v->get_sku();
+          if (!$vid || $cls::money_cents("6.44")!==644 ||
+              $cls::money_cents("1e3")!==false) {
+            throw new Exception("Currency parsing or test variation setup failed");
+          }
+          $record=array(
+            "schema"=>1, "sku_hash"=>hash("sha256",$sku),
+            "price_at_capture"=>644,"timestamp"=>time()-DAY_IN_SECONDS,
+            "supplier"=>500,"shipping"=>300,"import_tax"=>100,
+            "payment_fee"=>50,"other"=>40,
+            "source_url"=>"https://supplier.example/secret-token=do-not-report"
+          );
+          $key="droper_quote_brl_v1_".$vid;
+          update_option($key,$record,false);
+          $q=$cls::quote_assessment($vid,$sku,"6.44");
+          if ($q["kind"]!=="current_manual" || $q["margin_cents"]!==-346)
+            throw new Exception("Negative margin quote not detected");
+          if ($cls::quote_assessment($vid,"changed-sku","6.44")["kind"]!=="rejected")
+            throw new Exception("SKU mismatch did not invalidate quote");
+          if ($cls::quote_assessment($vid,$sku,"7.00")["kind"]!=="price_changed")
+            throw new Exception("Price changed but quote remains current");
+          $before=(int) wc_get_product($vid)->get_stock_quantity();
+          do_action($cls::EVENT);
+          $r=get_option($cls::OPTION,false);
+          if (!is_array($r) || ($r["sku_count"] ?? 0)<1 ||
+              ($r["quote_negative_margin"] ?? 0)<1 ||
+              ($r["quote_current_manual"] ?? 0)<1 ||
+              ($r["low_woo_stock"] ?? 0)<1 ||
+              ($r["missing_weight_or_dimensions"] ?? 0)<1 ||
+              !empty($r["realized_profit_verified"]) ||
+              !empty($r["commerce_authorized"]) ||
+              empty($r["read_only"])) {
+            throw new Exception("Autonomous risk snapshot missed blockers or claimed commercial authorization");
+          }
+          if ($before !== (int) wc_get_product($vid)->get_stock_quantity())
+            throw new Exception("Profit monitor changed Woo stock");
+          if (strpos(wp_json_encode($r),"supplier.example")!==false)
+            throw new Exception("Private quotation URL leaked in aggregate report");
+          if (in_array($cls::OPTION,array_keys(wp_load_alloptions()),true))
+            throw new Exception("Profit report was autoloaded");
+          $record["timestamp"]=time()-16*DAY_IN_SECONDS;
+          update_option($key,$record,false);
+          if ($cls::quote_assessment($vid,$sku,"6.44")["kind"]!=="stale")
+            throw new Exception("Expired manual quote was not detected");
+          delete_option($key);
+          echo "DROPERAGENT autonomous daily read-only profit risk monitor PASS\n";
+          ' --allow-root
       - name: Create and reread a real WooCommerce product via database
         run: |
           docker compose run --rm --user 0 --entrypoint wp wpcli eval '
