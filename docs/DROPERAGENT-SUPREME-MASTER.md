@@ -231,3 +231,13 @@ F3. Solo con confirmación expresa de operación y monto: piloto real auditado.
 - Mantener worker de compras deshabilitado y bloqueo de pagos. CJ MCP oficial incluye herramientas de escritura; **no** habilitarlo con acceso productivo sin aislamiento de permisos.
 
 **PROTOCOLO “SEGUIR” actualizado**: siguiente P0 es conectar **cuenta CJ oficial en modo consulta** y validar proveedor/flete BR de SKUs realmente equivalentes, sin DSers, conservando el mapeo y los checkout actuales. No confundir la API implementada con autorización/cotización obtenida.
+
+### 2026-11-09 — Panel administrativo WordPress para APIs de proveedores (módulo 0.1.0)
+
+- Solicitud del usuario: administrar APIs **dentro de wp-admin**, sin depender de terminal/Render para introducir la primera clave de CJ.
+- Sitio auditado vía WordPress MCP: PHP 8.3.36, Sodium y OpenSSL presentes, WooCommerce y DroperAgent Bridge activos; **no se sobrescriben esos plugins ni el módulo PIX**.
+- Implementación aislada: `wordpress/droperagent-api-connections/droperagent-api-connections.php`. Muestra **WooCommerce → DROPERAGENT APIs** solo a administradores, formulario CJ Key cifrada Sodium, test autorizado con POST solo a CJ authentication/getAccessToken (no orden/pago), nonce, cooldown, redacción y revocación. Otros proveedores se muestran como **pendientes**, no falsamente conectados.
+- Documento técnico: [docs/WORDPRESS-API-CONNECTIONS.md](WORDPRESS-API-CONNECTIONS.md). PR nueva rama `feat/wp-api-connections-admin`; CI: WordPress/MariaDB/Woo sandbox instala el plugin, valida autoload=false, cifrado, gate de rol. **Todavía no declarar PASS hasta verificar workflow.**
+- Conector WordPress.com no controla el sitio self-hosted `droperagent.cu.ma`; plugin ZIP no se puede instalar automáticamente con ese conector. Alternativa de despliegue: carga admin usando theme draft de OneMCP, con backup; requiere migración a plugin para resistir updates del tema padre.
+- **LÍMITE P0:** guardar API Key CJ en WP **NO configura CJ_ACCESS_TOKEN en Render**. Antes de declarar CJ plenamente conectado hay que construir transferencia segura de servidor a servidor o autenticar Render por su propio secreto. Clave y tokens no deben salir al frontend ni a issues/repos/chats. No modificar SKUs, precios, proveedores, pagos ni activar worker.
+- Próxima tarea: CI del plugin, publicar panel si seguro y verificar que wp-admin lo carga. Después, con clave CJ introducida por el titular, comprobar test real en WordPress, sin operaciones monetarias.
