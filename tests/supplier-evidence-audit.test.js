@@ -62,6 +62,7 @@ test('blocks expired timestamps and future-dated claims', () => {
   const data = fixture();
   data.quotes[0].checkedAt = '2026-11-05T19:00:00Z';
   assert.ok(run(data).results[0].reasons.includes('QUOTE_EXPIRED_OR_INVALID'));
+  assert.equal(run(data).results[0].estimatedMarginPercent, null);
   data.quotes[0].checkedAt = '2026-11-08T21:10:00Z';
   assert.ok(run(data).results[0].reasons.includes('QUOTE_EXPIRED_OR_INVALID'));
   assert.equal(validEvidenceTime('2026-11-08T20:00:00Z', NOW), true);
@@ -76,6 +77,8 @@ test('blocks missing country, currency and provenance without inventing exchange
   const reasons = run(data).results[0].reasons;
   assert.ok(reasons.includes('BRAZIL_BRL_QUOTE_REQUIRED'));
   assert.ok(reasons.includes('SOURCE_PROVENANCE_MISSING'));
+  assert.equal(run(data).results[0].estimatedProfitBRL, null);
+  assert.equal(run(data).results[0].estimatedMarginPercent, null);
 });
 
 test('blocks missing costs and unjustified zero costs', () => {
