@@ -94,8 +94,9 @@ final class DroperAgent_Profit_Monitor {
                 $qty = $v->get_stock_quantity('edit');
                 if (!$manage || $qty === null) $r['stock_not_managed']++;
                 elseif ((int) $qty <= 1) $r['low_woo_stock']++;
-                if ((string) $v->get_weight() === '' || (string) $v->get_length() === '' ||
-                    (string) $v->get_width() === '' || (string) $v->get_height() === '') {
+                if ($v->needs_shipping() &&
+                    ((string) $v->get_weight() === '' || (string) $v->get_length() === '' ||
+                     (string) $v->get_width() === '' || (string) $v->get_height() === '')) {
                     $r['missing_weight_or_dimensions']++;
                 }
                 $q = self::quote_assessment((int) $id, $sku, (string) $v->get_price('edit'));
