@@ -13,6 +13,8 @@
 - **Evidência de smoke público:** https://github.com/sebastisnzoth/droperagent/actions/runs/42457291303 — 9/9 PASS
 - **Detalhes da auditoria:** [docs/P0-LIVE-EXTERNAL-SMOKE.md](docs/P0-LIVE-EXTERNAL-SMOKE.md)
 
+**Sem DSers / integração direta:** [Pesquisa de APIs AliExpress, Temu, CJdropshipping, Banggood, Alibaba e EPROLO](docs/DIRECT-SUPPLIERS-WITHOUT-DSERS.md). A implementação CJ é READ-ONLY e não autentica automaticamente uma conta; DSers não é obrigatório para usar futuros conectores próprios. Nenhuma compra, pagamento ou publicação automática foi habilitada.
+
 ## Conexões verificadas
 
 - GitHub Pages: HTML e dois assets do build responderam a teste externo HTTPS.
