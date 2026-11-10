@@ -49,3 +49,17 @@ A documentação legada `ESTADO-ACTIVO.md`, `REAL_STATUS.md` e `STATUS.md` descr
 Dados observados na auditoria WordPress em 2026-11-10: WooCommerce ativo; 2 produtos variáveis publicados; 5 candidatos em rascunho; 0 pedidos; EPROLO 2.4.2 inativo; nenhuma zona de frete com método habilitado para BR. O checkout comercial continua protegido. Estes dados são snapshot, não monitoramento ao vivo.
 
 **Próximo P0:** integrar obtenção de evidências CJ por variante e frete Brasil com escopos read-only e fonte independente de demanda. Depois reconciliar V10 com o worker persistente e painel de um clique, sem duplicar o radar WordPress existente.
+
+## CJ — Dossiê de variante real (fase de integração)
+
+`POST /api/sourcing/cj/v10-variant-dossier` requer login administrativo do backend, `CJ_ACCESS_TOKEN` configurado **no backend GitHub/Render** e corpo:
+
+```json
+{"pid":"ID_CJ_REAL","vid":"VID_CJ_REAL","quantity":1,"origin":"CN"}
+```
+
+O endpoint primeiro consulta as variantes do produto e verifica que o `vid` pertence ao `pid`. Só em seguida consulta estoque por depósito e frete estimado ao **país Brasil**. O retorno é `CJ_DATA_COLLECTED_REVIEW_REQUIRED`, nunca aprovação. Se o VID não pertence ao produto, encerra após a primeira consulta. Rate limit local: uma execução ativa, intervalo de dois minutos entre solicitações; três chamadas CJ por dossiê completo. Reutiliza limites e sanitização do cliente CJ preexistente.
+
+**Não** confundir o `CJ_ACCESS_TOKEN` do Render com a chave CJ guardada no WordPress; não há sincronização automática entre os dois. A API de frete por país não comprova custo para um CEP, tributos completos ou entrega garantida. Também não comprova demanda, margem BRL nem estoque reservado. Nenhum dado deste endpoint permite publicação, pedido, transferência ou liberação do checkout.
+
+Para teste sem compras: `node --test tests/v10-cj-variant-dossier.test.js tests/v10-cj-variant-http.test.mjs` e `npm test`.
