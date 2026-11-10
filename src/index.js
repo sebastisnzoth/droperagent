@@ -16,6 +16,7 @@ const { evaluateMapping } = require('./supplier-mapping-guard');
 const { evaluateSupplierEvidence } = require('./supplier-evidence-audit');
 const { makeWooVariantSnapshot } = require('./woo-variation-snapshot');
 const { CJReadOnlyClient } = require('./cj-readonly-client');
+const { evaluateV10CommercialGate } = require('./v10-commercial-gate');
 
 const app = express();
 if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
@@ -192,6 +193,15 @@ app.post('/api/automation/supplier-evidence-preflight', authorize, (req, res) =>
       error: 'invalid_supplier_evidence_input',
       detail: 'Provide bounded mapping, BRL/Brazil quotations and explicit margin policy'
     });
+  }
+});
+// Private V10 preflight of caller-supplied evidence; never verifies it against the provider.
+// Does not touch WooCommerce, create orders, settle PIX or approve checkout.
+app.post('/api/automation/v10-commercial-preflight', authorize, (req,res) => {
+  try {
+    res.json(evaluateV10CommercialGate(req.body));
+  } catch (_) {
+    res.status(400).json({error:'invalid_v10_commercial_evidence'});
   }
 });
 // CJ API 2.0 direct sourcing: authenticated, only read endpoints and freight estimate.
