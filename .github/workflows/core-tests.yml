@@ -23,6 +23,8 @@ jobs:
           node --check src/br-market-benchmark.js
           node --check src/woo-variation-snapshot.js
           node --check src/cj-readonly-client.js
+          node --check src/v10-commercial-gate.js
+          node --check src/v10-cj-variant-dossier.js
           node --check src/cj-rfq-queue.js
           node --check src/woocommerce-client.js
           node --check src/mcp-server.mjs
@@ -43,5 +45,7 @@ jobs:
         run: node --test tests/woo-variation-snapshot-http.test.mjs
       - name: CJ supplier read-only API authentication and no-purchase HTTP test
         run: node --test tests/cj-readonly-http.test.mjs
+      - name: V10 commercial and CJ variant HTTP security integration
+        run: node --test tests/v10-cj-variant-http.test.mjs
       - name: Real MCP client-server protocol test
         run: node --test tests/mcp.test.mjs
