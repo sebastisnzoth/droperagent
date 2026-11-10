@@ -63,3 +63,9 @@ O endpoint primeiro consulta as variantes do produto e verifica que o `vid` pert
 **Não** confundir o `CJ_ACCESS_TOKEN` do Render com a chave CJ guardada no WordPress; não há sincronização automática entre os dois. A API de frete por país não comprova custo para um CEP, tributos completos ou entrega garantida. Também não comprova demanda, margem BRL nem estoque reservado. Nenhum dado deste endpoint permite publicação, pedido, transferência ou liberação do checkout.
 
 Para teste sem compras: `node --test tests/v10-cj-variant-dossier.test.js tests/v10-cj-variant-http.test.mjs` e `npm test`.
+
+## V11 — bloqueios preventivos de estoque e logística
+
+O dossiê agora retorna `CJ_UNFULFILLABLE_PENDING_REVIEW` quando a soma de estoque de armazéns CJ é menor que a quantidade solicitada ou quando CJ não devolve alternativas de transporte ao Brasil. Mesmo quando há stock e método de envio, o estado continua `CJ_DATA_COLLECTED_REVIEW_REQUIRED` e inclui os bloqueios de cotação por CEP, impostos/aduana, câmbio/margem e demanda. **Nenhuma saída autoriza venda.**
+
+O próximo ponto obrigatório é uma integração autorizada capaz de obter cotação real ao CEP e documentar custo total em BRL, com auditoria de prova externa de demanda. Continuar mantendo PR isolado até CI verde, revisão e decisão de deploy.
