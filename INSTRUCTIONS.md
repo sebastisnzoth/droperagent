@@ -30,15 +30,12 @@ Vá em **WooCommerce > Configurações > Advanced > REST API** e:
 2. Defina:
    - Descrição: "DroperAgent MCP"
    - Usuário: Seu usuário WordPress
-   - Permissões: Leitura e escrita
+   - Permissões: **Somente leitura** para pesquisa, auditoria e diagnóstico. Criar chave separada de escrita somente quando houver caso de uso autorizado, testes e escopo mínimo.
 3. Copie a Consumer Key e Consumer Secret
 
 ### 4. Configuração DSers
 
-Para usar a integração completa do DSers:
-1. Acesse **DSers > Configurações > API**
-2. Gere sua API Key
-3. Adicione ao arquivo `.env`
+**Atenção:** o acesso de API DSers não está confirmado para esta conta. Não suponha que todas as contas tenham uma chave API pública ou endpoint de pedidos autorizado. Siga somente a documentação oficial e os escopos realmente concedidos. Não configure chaves fictícias nem libere pedidos ou pagamentos. Consulte `docs/DSERS-SUPPLIER-EVIDENCE-CONTRACT.md`.
 
 ## 📡 API Endpoints
 
