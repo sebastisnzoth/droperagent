@@ -1,7 +1,7 @@
 name: DROPERAGENT P0 External LIVE Smoke
 on:
   push:
-    branches: [test/p0-live-public-smoke-20261108]
+    branches: [main, test/p0-live-public-smoke-20261108]
   pull_request:
     branches: [main]
     paths:
