@@ -42,6 +42,15 @@ async function collectCJVariantDossier(client,input,{sleep=ms=>new Promise(resol
    cjInventory:Number.isSafeInteger(w.cjInventory)&&w.cjInventory>=0?w.cjInventory:null,
    factoryInventory:Number.isSafeInteger(w.factoryInventory)&&w.factoryInventory>=0?w.factoryInventory:null
  }));
+ const availableWarehouseUnits=warehouses.reduce((n,w)=>n+(Number.isSafeInteger(w.cjInventory)?w.cjInventory:0),0);
+ const hasWarehouseStock=availableWarehouseUnits>=input.quantity;
+ const hasShippingMethods=freight.availableMethods.length>0;
+ const blockers=[];
+ if(!hasWarehouseStock)blockers.push('cj_warehouse_inventory_unavailable_or_unverified');
+ if(!hasShippingMethods)blockers.push('no_brazil_shipping_method_returned');
+ // This country-level quote is not a legal tax/CEP quote and is never an approval.
+ blockers.push('brazil_cep_freight_not_quoted','taxes_customs_not_verified',
+   'fx_and_net_margin_not_verified','demand_not_verified');
  const methods=freight.availableMethods.map(m=>({
    name:typeof m.name==='string'?m.name.slice(0,80):null,
    estimatedTransit:typeof m.estimatedTransit==='string'?m.estimatedTransit.slice(0,50):null,
@@ -51,7 +60,10 @@ async function collectCJVariantDossier(client,input,{sleep=ms=>new Promise(resol
    totalPostageUSD:typeof m.totalPostageUSD==='string'?m.totalPostageUSD:null
  }));
  return {
-   state:'CJ_DATA_COLLECTED_REVIEW_REQUIRED',source:'cj_api_v2',
+   state:hasWarehouseStock&&hasShippingMethods?'CJ_DATA_COLLECTED_REVIEW_REQUIRED':'CJ_UNFULFILLABLE_PENDING_REVIEW',
+   blockers,warehouseStockForQuantityAvailable:hasWarehouseStock,
+   brazilShippingMethodsReturned:hasShippingMethods,
+   source:'cj_api_v2',
    checkedAt:new Date().toISOString(),readOnly:true,queriesAttempted:3,
    cjProductId:input.pid,cjVariantId:input.vid,
    variantMatched:true,cjVariantSku:variant.cjVariantSku,
