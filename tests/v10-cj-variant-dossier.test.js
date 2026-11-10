@@ -58,3 +58,29 @@ test('invalid upstream stock or freight fails instead of claiming readiness',asy
  other.quoteBrazilFreight=async()=>({cjVariantId:'CJ-VID-01',destination:'US',availableMethods:[]});
  await assert.rejects(collectCJVariantDossier(other,input,{sleep:async()=>{}}),/Invalid freight/);
 });
+
+test('stock depletion and missing Brazil logistics never present a sellable dossier',async()=>{
+ const depleted=mocked().cj;
+ depleted.getStock=async ({vid})=>({cjVariantId:vid,warehouses:[{countryCode:'CN',cjInventory:0,factoryInventory:0}]});
+ const zero=await collectCJVariantDossier(depleted,input,{sleep:async()=>{}});
+ assert.equal(zero.state,'CJ_UNFULFILLABLE_PENDING_REVIEW');
+ assert.equal(zero.warehouseStockForQuantityAvailable,false);
+ assert.ok(zero.blockers.includes('cj_warehouse_inventory_unavailable_or_unverified'));
+ assert.equal(zero.readyToSell,false);
+ const noFreight=mocked().cj;
+ noFreight.quoteBrazilFreight=async ({vid})=>({cjVariantId:vid,destination:'BR',availableMethods:[]});
+ const noRoute=await collectCJVariantDossier(noFreight,input,{sleep:async()=>{}});
+ assert.equal(noRoute.state,'CJ_UNFULFILLABLE_PENDING_REVIEW');
+ assert.equal(noRoute.brazilShippingMethodsReturned,false);
+ assert.ok(noRoute.blockers.includes('no_brazil_shipping_method_returned'));
+ assert.equal(noRoute.checkoutReleaseAuthorized,false);
+});
+test('country-level CJ quote still blocks CEP, duties, currency and demand even with stock and shipping',async()=>{
+ const {cj}=mocked();
+ const r=await collectCJVariantDossier(cj,input,{sleep:async()=>{}});
+ assert.equal(r.state,'CJ_DATA_COLLECTED_REVIEW_REQUIRED');
+ for(const blocked of ['brazil_cep_freight_not_quoted','taxes_customs_not_verified',
+   'fx_and_net_margin_not_verified','demand_not_verified'])assert.ok(r.blockers.includes(blocked));
+ assert.equal(r.supplierStockCommitted,false);
+ assert.equal(r.supplierPaymentAuthorized,false);
+});
