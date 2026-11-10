@@ -17,6 +17,7 @@ const { evaluateSupplierEvidence } = require('./supplier-evidence-audit');
 const { makeWooVariantSnapshot } = require('./woo-variation-snapshot');
 const { CJReadOnlyClient } = require('./cj-readonly-client');
 const { evaluateV10CommercialGate } = require('./v10-commercial-gate');
+const { collectCJVariantDossier } = require('./v10-cj-variant-dossier');
 
 const app = express();
 if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
@@ -203,6 +204,23 @@ app.post('/api/automation/v10-commercial-preflight', authorize, (req,res) => {
   } catch (_) {
     res.status(400).json({error:'invalid_v10_commercial_evidence'});
   }
+});
+// Bounded CJ V10 dossier. Only authenticated read-only catalogue/stock/freight operations.
+// One active request per instance, with a 120s interval to conserve CJ API points.
+let cjDossierBusy=false;
+let cjDossierLastStartedAt=0;
+app.post('/api/sourcing/cj/v10-variant-dossier',authorize,requireCJ,async(req,res)=>{
+  if(cjDossierBusy || Date.now()-cjDossierLastStartedAt<120000)
+    return res.status(429).json({error:'cj_dossier_rate_limited'});
+  // Validate BEFORE reserving a call or sending credentials to CJ.
+  const body=req.body||{};
+  try { require('./v10-cj-variant-dossier').assertInput(body); }
+  catch (_) { return res.status(400).json({error:'invalid_cj_dossier_input'}); }
+  cjDossierBusy=true;
+  cjDossierLastStartedAt=Date.now();
+  try {res.json(await collectCJVariantDossier(cj,body));}
+  catch(e){safeCJError(e,res);}
+  finally{cjDossierBusy=false;}
 });
 // CJ API 2.0 direct sourcing: authenticated, only read endpoints and freight estimate.
 // NO purchase, payment, order creation, Woo updates, DSers access or automatic supplier matching.
